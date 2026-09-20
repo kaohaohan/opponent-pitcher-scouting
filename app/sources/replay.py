@@ -38,7 +38,7 @@ class ReplaySource(PlateAppearanceSource):
         self.fixture_path = Path(fixture_path)
 
     @classmethod
-    def from_default_fixture(cls) -> "ReplaySource":
+    def from_default_fixture(cls) -> ReplaySource:
         return cls(settings.replay_fixture_path)
 
     def events(self) -> Iterator[RawEvent]:

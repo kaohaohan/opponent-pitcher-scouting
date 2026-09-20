@@ -9,7 +9,7 @@ this index for `ON CONFLICT DO NOTHING` rather than doing a SELECT-then-INSERT.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -18,7 +18,7 @@ from .db import Base
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Player(Base):
@@ -31,7 +31,7 @@ class Player(Base):
     name: Mapped[str] = mapped_column(String(128))
     team: Mapped[str] = mapped_column(String(128))
 
-    plate_appearances: Mapped[list["PlateAppearance"]] = relationship(
+    plate_appearances: Mapped[list[PlateAppearance]] = relationship(
         back_populates="player", cascade="all, delete-orphan"
     )
 
@@ -64,7 +64,7 @@ class PlateAppearance(Base):
     is_complete: Mapped[bool] = mapped_column(Boolean, default=True)
 
     player: Mapped[Player] = relationship(back_populates="plate_appearances")
-    alerts: Mapped[list["Alert"]] = relationship(
+    alerts: Mapped[list[Alert]] = relationship(
         back_populates="plate_appearance", cascade="all, delete-orphan"
     )
 

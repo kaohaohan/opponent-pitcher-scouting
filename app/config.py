@@ -23,7 +23,7 @@ class Settings:
     frontend_dir: Path
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         return cls(
             database_url=os.environ.get(
                 "DATABASE_URL", f"sqlite:///{PROJECT_ROOT / 'watch.db'}"
