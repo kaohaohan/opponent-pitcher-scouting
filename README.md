@@ -34,6 +34,16 @@ Run the tests:
 pytest
 ```
 
+Lint:
+
+```bash
+ruff check .
+```
+
+`pyproject.toml` configures a minimal rule set (`E`, `F`, `I`, `UP` — real bugs,
+dead code, unsorted imports, outdated syntax). No docstring, naming, or
+complexity rules, and no mypy; the gate is intentionally small.
+
 ### Configuration
 
 | Variable | Default | Purpose |
@@ -196,8 +206,8 @@ These are deliberate for an MVP skeleton:
   import in `repository.py` — the single place SQL is written.
 * Result strings are the normalization vocabulary (`"Double"`, `"Home Run"`, …);
   a real feed adapter has to map into it.
-* No lint or type-check configuration is committed, so there is no static analysis
-  gate; correctness rests on the test suite.
+* Ruff is configured, but there is no type-check gate (no mypy) and no CI
+  workflow wired up to run either automatically; both run locally on request.
 * `ReplaySource` reads its fixture in one go, so a truncated fixture yields zero
   events rather than a partial game. Mid-stream source failure is still handled and
   covered by tests — it is the shape a live feed will fail in.
