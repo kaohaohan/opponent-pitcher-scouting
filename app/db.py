@@ -7,6 +7,7 @@ nothing outside this module is allowed to reach for a global session.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine, event
@@ -14,6 +15,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -35,7 +38,9 @@ def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
     try:
         cursor.execute("PRAGMA foreign_keys=ON")
     except Exception:  # pragma: no cover - non-SQLite backends
-        pass
+        # Not fatal: other backends enforce foreign keys without the pragma. Logged
+        # rather than swallowed, so a genuinely unenforced constraint is visible.
+        logger.debug("Could not enable SQLite foreign keys", exc_info=True)
     finally:
         cursor.close()
 

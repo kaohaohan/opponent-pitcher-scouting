@@ -50,6 +50,7 @@ def test_replay_endpoint_reports_what_it_ingested(client):
         "ignored_incomplete": 1,
         "invalid": 0,
         "alerts_created": 3,
+        "source_error": None,
     }
 
 

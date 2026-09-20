@@ -115,3 +115,6 @@ class ReplayReport(BaseModel):
     ignored_incomplete: int
     invalid: int
     alerts_created: int
+    #: Set when the source itself failed part-way through. Events already ingested
+    #: before the failure are kept and counted above.
+    source_error: str | None = None
