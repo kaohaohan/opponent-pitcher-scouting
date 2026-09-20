@@ -1,0 +1,82 @@
+{
+  "source": "replay",
+  "description": "Mock historical game used to exercise the ingestion pipeline. Not real data.",
+  "game": {
+    "game_id": "2025-08-14-WSH-PHI",
+    "date": "2025-08-14",
+    "opponent": "Washington Nationals"
+  },
+  "player": {
+    "external_player_id": "mock-696285",
+    "name": "Hao-Yu Lee",
+    "team": "Philadelphia Phillies"
+  },
+  "plate_appearances": [
+    {
+      "at_bat_index": 1,
+      "inning": 1,
+      "result": "Groundout",
+      "pitcher": "Mitchell Parker",
+      "pitch_type": "Sinker",
+      "pitch_velocity": 92.4,
+      "exit_velocity": 87.6,
+      "launch_angle": -4.0,
+      "is_complete": true
+    },
+    {
+      "at_bat_index": 2,
+      "inning": 3,
+      "result": "Strikeout",
+      "pitcher": "Mitchell Parker",
+      "pitch_type": "Slider",
+      "pitch_velocity": 84.9,
+      "exit_velocity": null,
+      "launch_angle": null,
+      "is_complete": true
+    },
+    {
+      "at_bat_index": 3,
+      "inning": 5,
+      "result": "Double",
+      "pitcher": "Mitchell Parker",
+      "pitch_type": "Four-Seam Fastball",
+      "pitch_velocity": 93.1,
+      "exit_velocity": 104.7,
+      "launch_angle": 21.5,
+      "is_complete": true
+    },
+    {
+      "at_bat_index": 4,
+      "inning": 7,
+      "result": "Single",
+      "pitcher": "Jose A. Ferrer",
+      "pitch_type": "Four-Seam Fastball",
+      "pitch_velocity": 97.3,
+      "exit_velocity": 96.2,
+      "launch_angle": 11.0,
+      "is_complete": true
+    },
+    {
+      "at_bat_index": 5,
+      "inning": 8,
+      "result": "Flyout",
+      "pitcher": "Kyle Finnegan",
+      "pitch_type": null,
+      "pitch_velocity": null,
+      "exit_velocity": null,
+      "launch_angle": null,
+      "is_complete": true
+    },
+    {
+      "at_bat_index": 6,
+      "inning": 9,
+      "result": "In Progress",
+      "pitcher": "Kyle Finnegan",
+      "pitch_type": "Splitter",
+      "pitch_velocity": 96.1,
+      "exit_velocity": null,
+      "launch_angle": null,
+      "is_complete": false
+    }
+  ]
+}
