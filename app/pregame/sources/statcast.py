@@ -61,7 +61,8 @@ class StatcastPitchSource(PitchDataSource):
         except httpx.HTTPError as exc:
             raise StatcastFetchError(f"Could not fetch Statcast data: {exc}") from exc
 
-        return parse_csv_rows(csv.DictReader(io.StringIO(response.text)))
+        csv_text = response.content.decode("utf-8-sig")
+        return parse_csv_rows(csv.DictReader(io.StringIO(csv_text)))
 
 
 def parse_csv_rows(rows: Iterable[dict[str, str]]) -> list[PitchRecord]:

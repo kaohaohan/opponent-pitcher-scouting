@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
+import csv
+import io
 from datetime import date
 
-from app.pregame.sources.statcast import parse_csv_rows
+import httpx
+
+from app.pregame.sources.statcast import StatcastPitchSource, parse_csv_rows
+
+BOM_PREFIXED_CSV = (
+    b'\xef\xbb\xbf"pitch_type",game_date,release_speed,pitcher,game_pk,'
+    b"at_bat_number,pitch_number,balls,strikes\n"
+    b"SL,2024-08-10,88.3,543037,745708,43,3,1,2\n"
+    b",2024-08-10,82.9,543037,745708,43,2,1,1\n"
+)
 
 
 def test_pickoff_rows_without_a_pitch_type_are_skipped(statcast_rows):
@@ -12,6 +23,52 @@ def test_pickoff_rows_without_a_pitch_type_are_skipped(statcast_rows):
 
     assert len(records) == 30
     assert all(record.pitch_type for record in records)
+
+
+def test_blank_pitch_type_rows_are_still_skipped():
+    rows = [
+        {
+            "pitch_type": "",
+            "pitcher": "543037",
+            "game_pk": "745708",
+            "game_date": "2024-08-10",
+            "at_bat_number": "43",
+            "pitch_number": "2",
+            "balls": "1",
+            "strikes": "1",
+            "release_speed": "82.9",
+        }
+    ]
+
+    assert parse_csv_rows(rows) == []
+
+
+def test_bom_prefixed_csv_header_parses_correctly():
+    csv_text = BOM_PREFIXED_CSV.decode("utf-8-sig")
+    rows = csv.DictReader(io.StringIO(csv_text))
+    records = parse_csv_rows(rows)
+
+    assert len(records) == 1
+    assert records[0].pitch_type == "SL"
+    assert records[0].pitcher_id == 543037
+
+
+def test_fetch_pitcher_pitches_handles_bom_prefixed_savant_content(monkeypatch):
+    def fake_get(url, params, timeout):
+        request = httpx.Request("GET", url, params=params)
+        return httpx.Response(200, content=BOM_PREFIXED_CSV, request=request)
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    records = StatcastPitchSource().fetch_pitcher_pitches(
+        pitcher_id=543037,
+        start_date=date(2024, 8, 10),
+        end_date=date(2024, 8, 11),
+    )
+
+    assert len(records) == 1
+    assert records[0].pitch_type == "SL"
+    assert records[0].release_speed == 88.3
 
 
 def test_rows_are_normalized_into_typed_pitch_records(statcast_rows):
