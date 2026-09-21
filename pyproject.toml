@@ -1,0 +1,8 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# Minimal, high-signal set: real bugs, dead imports/variables, unsorted imports.
+# Not a full style overhaul — no docstring/naming/complexity rules.
+select = ["E", "F", "I", "UP"]
