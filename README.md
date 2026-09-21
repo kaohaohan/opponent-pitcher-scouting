@@ -19,14 +19,24 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt   # or requirements.txt without the test deps
 ```
 
-Run the app:
+Run the API:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Then open <http://127.0.0.1:8000/> — a one-page UI with a **Run historical
-replay** button and tables for players, alerts and plate appearances.
+Interactive API documentation is available at <http://127.0.0.1:8000/docs>.
+
+The dashboard is a separate Next.js application. In another terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open <http://localhost:3000/pregame>. The current frontend phase uses
+typed mock data only and does not call the FastAPI application.
 
 Run the tests:
 
