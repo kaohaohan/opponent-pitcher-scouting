@@ -38,13 +38,15 @@ export function AlertsPanel({ alerts, summary }: AlertsPanelProps) {
                   <h3>{alert.event}</h3>
                   <span>{alert.player} · {alert.team}</span>
                 </div>
-                <time>{alert.timestamp}</time>
               </div>
               <p>{alert.detail}</p>
               <div className="alert-row__meta">
-                <span>{alert.gameMoment}</span>
                 <span className="rule-code">Rule: {ruleLabels[alert.rule]}</span>
               </div>
+            </div>
+            <div className="alert-row__moment" aria-label="Alert timing">
+              <time>{alert.timestamp}</time>
+              <span>{alert.gameMoment}</span>
             </div>
           </article>
         ))}

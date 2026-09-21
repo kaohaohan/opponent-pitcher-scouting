@@ -215,14 +215,14 @@ select:focus-visible {
 .workspace {
   margin: 0 auto;
   max-width: 1640px;
-  padding: 28px;
+  padding: 24px 28px;
 }
 
 .page-header {
   align-items: end;
   display: flex;
   justify-content: space-between;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
 }
 
 .eyebrow,
@@ -281,7 +281,7 @@ select:focus-visible {
   align-items: start;
   display: flex;
   justify-content: space-between;
-  padding: 18px 20px 15px;
+  padding: 15px 18px 12px;
 }
 
 .panel-heading h2 {
@@ -301,13 +301,13 @@ select:focus-visible {
 .pregame-grid {
   align-items: start;
   display: grid;
-  gap: 16px;
+  gap: 14px;
   grid-template-columns: minmax(260px, 0.74fr) minmax(470px, 1.5fr) minmax(330px, 1fr);
 }
 
 .pregame-center {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .profile-panel {
@@ -335,8 +335,8 @@ select:focus-visible {
   border-top: 1px solid var(--border);
   display: flex;
   gap: 13px;
-  margin: 0 20px;
-  padding: 18px 0;
+  margin: 0 18px;
+  padding: 15px 0;
 }
 
 .pitcher-avatar {
@@ -370,13 +370,13 @@ select:focus-visible {
   display: grid;
   grid-template-columns: 1fr 1fr;
   margin: 0;
-  padding: 8px 20px 12px;
+  padding: 7px 18px 10px;
 }
 
 .profile-stats > div {
   border-bottom: 1px solid rgba(34, 48, 61, 0.68);
   min-width: 0;
-  padding: 13px 6px 13px 0;
+  padding: 11px 6px 11px 0;
 }
 
 .profile-stats > div:nth-child(even) {
@@ -442,13 +442,13 @@ select:focus-visible {
 .panel-divider {
   background: var(--border);
   height: 1px;
-  margin: 0 20px;
+  margin: 0 18px;
 }
 
 .pregame-controls {
   display: grid;
-  gap: 12px;
-  padding: 18px 20px 20px;
+  gap: 10px;
+  padding: 15px 18px 17px;
 }
 
 .field-label {
@@ -529,9 +529,9 @@ select:focus-visible {
   align-items: center;
   border-bottom: 1px solid rgba(34, 48, 61, 0.7);
   display: grid;
-  gap: 16px;
+  gap: 14px;
   grid-template-columns: minmax(140px, 0.8fr) minmax(170px, 1fr) 104px;
-  padding: 13px 20px;
+  padding: 10px 18px;
 }
 
 .pitch-row:last-child {
@@ -652,7 +652,7 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 12px;
+  padding: 10px 11px;
   text-align: left;
 }
 
@@ -694,8 +694,22 @@ select:focus-visible {
   margin-top: 2px;
 }
 
+.count-tile__warning {
+  align-self: flex-start;
+  background: rgba(227, 182, 93, 0.14);
+  border: 1px solid rgba(227, 182, 93, 0.34);
+  border-radius: 3px;
+  color: #f1ca78;
+  font-size: 0.58rem;
+  font-weight: 780;
+  letter-spacing: 0.05em;
+  margin-top: 7px;
+  padding: 2px 5px;
+  text-transform: uppercase;
+}
+
 .count-detail {
-  padding: 18px 20px 20px;
+  padding: 15px 18px 18px;
 }
 
 .count-detail__header {
@@ -726,7 +740,7 @@ select:focus-visible {
 .distribution-list {
   display: grid;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 14px;
 }
 
 .distribution-row {
@@ -1137,7 +1151,7 @@ select:focus-visible {
   align-items: center;
   display: flex;
   justify-content: space-between;
-  padding: 20px;
+  padding: 17px 18px;
 }
 
 .alerts-summary h2 {
@@ -1174,9 +1188,9 @@ select:focus-visible {
 
 .alert-row {
   display: grid;
-  gap: 16px;
-  grid-template-columns: 42px 1fr;
-  padding: 18px 20px;
+  gap: 13px;
+  grid-template-columns: 38px minmax(0, 1fr) 122px;
+  padding: 14px 18px;
   position: relative;
 }
 
@@ -1208,7 +1222,7 @@ select:focus-visible {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.67rem;
   font-weight: 800;
-  height: 38px;
+  height: 34px;
   justify-content: center;
 }
 
@@ -1220,8 +1234,7 @@ select:focus-visible {
 
 .alert-row__titleline {
   align-items: start;
-  display: flex;
-  justify-content: space-between;
+  display: block;
 }
 
 .alert-row h3 {
@@ -1230,7 +1243,7 @@ select:focus-visible {
 }
 
 .alert-row__titleline span,
-.alert-row time {
+.alert-row__moment {
   color: var(--text-dim);
   font-size: 0.67rem;
 }
@@ -1238,7 +1251,7 @@ select:focus-visible {
 .alert-row p {
   color: var(--text-muted);
   font-size: 0.75rem;
-  margin: 9px 0;
+  margin: 7px 0;
 }
 
 .alert-row__meta {
@@ -1259,6 +1272,21 @@ select:focus-visible {
   color: var(--text-dim);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   padding: 2px 6px;
+}
+
+.alert-row__moment {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.alert-row__moment time {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 @media (max-width: 1220px) {
@@ -1502,6 +1530,13 @@ select:focus-visible {
     align-items: start;
     flex-direction: column;
     gap: 6px;
+  }
+
+  .alert-row__moment {
+    align-items: flex-start;
+    flex-direction: row;
+    grid-column: 2;
+    text-align: left;
   }
 }
 

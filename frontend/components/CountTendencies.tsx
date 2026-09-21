@@ -37,6 +37,9 @@ export function CountTendencies({ buckets }: { buckets: CountBucketData[] }) {
               {bucket.primaryPitch} <strong>{bucket.percentage}%</strong>
             </span>
             <span className="count-tile__sample">n={bucket.sampleSize}</span>
+            {bucket.status === "insufficient_sample" ? (
+              <span className="count-tile__warning">Small sample</span>
+            ) : null}
           </button>
         ))}
       </div>
