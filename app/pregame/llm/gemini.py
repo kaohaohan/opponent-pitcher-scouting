@@ -16,7 +16,7 @@ from ...config import settings
 from ..schemas import PregameContext
 from .base import LLMProvider
 
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-3.6-flash"
 
 _SYSTEM_INSTRUCTION = (
     "You are a baseball analyst writing a concise pre-game scouting brief. "
