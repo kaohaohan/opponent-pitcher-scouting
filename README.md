@@ -51,6 +51,7 @@ complexity rules, and no mypy; the gate is intentionally small.
 | `DATABASE_URL` | `sqlite:///./watch.db` | SQLAlchemy URL |
 | `REPLAY_FIXTURE_PATH` | `app/fixtures/hao_yu_lee_2025-08-14.json` | Default replay fixture |
 | `FRONTEND_DIR` | `./frontend` | Static page directory |
+| `GEMINI_API_KEY` | *(none)* | Required to call `POST /api/pregame/brief`; read from the environment only |
 
 ## API
 
@@ -60,6 +61,7 @@ complexity rules, and no mypy; the gate is intentionally small.
 | `GET` | `/api/events` | Stored plate appearances. Filters: `game_id`, `player_id`, `limit` |
 | `GET` | `/api/alerts` | Alerts, newest first. Filters: `rule_type`, `limit` |
 | `POST` | `/api/replay` | **Development/demo only.** Replays a fixture through the pipeline. Optional `fixture_path` |
+| `POST` | `/api/pregame/brief` | Fetches one pitcher's recent Statcast pitches, aggregates pitch usage, and returns an LLM-written brief plus the structured context it was built from. Body: `pitcher_id`, `start_date`, `end_date` |
 | `GET` | `/health` | Liveness |
 
 Interactive docs at `/docs`.
@@ -214,3 +216,95 @@ These are deliberate for an MVP skeleton:
 
 Not implemented, and intentionally out of scope: authentication, AI, cloud
 infrastructure, advanced analytics, WebSockets, notifications, projections.
+
+## Phase 2: Pre-game Brief
+
+A second, self-contained feature living entirely in `app/pregame/`: given one
+pitcher and a date window, fetch their recent tracked pitches, calculate
+pitch-usage statistics, and ask an LLM to describe those precomputed facts in
+prose. Phase 1's event-monitoring pipeline is untouched — nothing in
+`app/pregame/` reads from or writes to the `watch.db` tables.
+
+**The backend calculates the baseball facts. The LLM communicates them.** The
+LLM is never the source of truth for a statistic: every count, percentage,
+and sample size it sees was computed before it was called.
+
+```
+StatcastPitchSource --> PitchRecord --> AggregationService --> SampleSizeGuard
+                                              |                       |
+                                    pitch_usage_by_type      pitch_usage_by_count
+                                              \_______________________/
+                                                        |
+                                            PregameContextBuilder
+                                                        |
+                                                 GeminiProvider
+                                                        |
+                                              POST /api/pregame/brief
+```
+
+```
+app/pregame/
+├── schemas.py           PitchRecord (the normalized contract) + usage/context/API models
+├── sample_size.py        MIN_SAMPLE_SIZE guard: sufficient vs insufficient_sample
+├── aggregation.py         pitch_usage_by_type(), pitch_usage_by_count() — pure functions
+├── context.py             PregameContextBuilder — assembles the structured PregameContext
+├── sources/
+│   ├── base.py             PitchDataSource ABC
+│   └── statcast.py          Baseball Savant's public CSV endpoint (httpx + stdlib csv)
+├── llm/
+│   ├── base.py              LLMProvider ABC
+│   └── gemini.py             GeminiProvider (google-genai)
+└── api.py                  POST /api/pregame/brief
+```
+
+### The sample-size guard
+
+`MIN_SAMPLE_SIZE = 20`, applied **per bucket**, not to the pitcher's overall
+pitch count: a pitcher can have thousands of tracked pitches while one
+rarely-thrown pitch type still has only a handful of observations. Each row
+in `pitch_usage_by_type` carries its own type's count as its sample size;
+each row in `pitch_usage_by_count` carries that count's total pitches as its
+sample size (the denominator that makes its percentage meaningful or not).
+
+Low-sample rows are **never dropped** from `PregameContext` — they stay
+visible with `status: "insufficient_sample"` — and `PregameContextBuilder`
+adds a plain-language note to `limitations` for each one. The Gemini system
+instruction explicitly tells it to treat `insufficient_sample` rows and the
+`limitations` list as caveats, never as tendencies.
+
+### The LLM boundary
+
+`GeminiProvider.generate_brief(context: PregameContext) -> str` is the entire
+surface an LLM has: it receives the structured context and returns text. It
+cannot query Statcast, cannot open a database session, and cannot compute or
+invent a number that is not already in the context — there is no argument
+through which it could. `LLMProvider` is an ABC so it is trivially swappable
+in tests: `FakeLLMProvider` (in `tests/pregame/fakes.py`) records the exact
+context object it was given and returns canned text, so tests assert on the
+*shape* of what an LLM receives without ever calling one.
+
+`GEMINI_API_KEY` is read from the environment only (`app/config.py`), with no
+default. Its absence is not an import-time error — Phase 1 must not require a
+Gemini key to start — but `GeminiProvider.generate_brief` raises
+`GeminiConfigurationError` immediately if it is unset, and `POST
+/api/pregame/brief` turns that into a `503`. A failed upstream Statcast or
+Gemini call becomes a `502` with a clear message. Neither path retries; this
+phase adds no resilience infrastructure.
+
+### Known limitations
+
+* Stateless by design: no brief is persisted, and repeating a request refetches
+  and regenerates from scratch.
+* One pitcher, one data source (Baseball Savant), one LLM provider (Gemini) —
+  by scope, not by accident.
+* `StatcastPitchSource` calls Baseball Savant synchronously in the request
+  path; there is no caching, pagination, or retry.
+* No authentication on `POST /api/pregame/brief`, consistent with Phase 1.
+* Pitch-type and count-usage percentages round to one decimal place; no
+  attempt is made to reconcile rounding across a breakdown.
+
+Not implemented, and intentionally out of scope for this phase: series
+adjustment detection, next-pitch prediction, ML models, hitter-vs-pitcher
+matchup modeling, handedness splits, heatmaps, bat tracking, RAG, vector
+databases, autonomous agents, WebSockets, multiple LLM providers, and an
+OpenAI integration.

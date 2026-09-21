@@ -21,6 +21,10 @@ class Settings:
     database_url: str
     replay_fixture_path: Path
     frontend_dir: Path
+    #: Gemini credential, from the environment only — no default. `None` when
+    #: unset; `GeminiProvider` fails clearly at call time rather than here, so
+    #: importing settings never requires a key Phase 1 doesn't need.
+    gemini_api_key: str | None
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -34,6 +38,7 @@ class Settings:
             frontend_dir=Path(
                 os.environ.get("FRONTEND_DIR", PROJECT_ROOT / "frontend")
             ),
+            gemini_api_key=os.environ.get("GEMINI_API_KEY"),
         )
 
 

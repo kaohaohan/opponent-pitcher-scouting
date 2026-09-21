@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from .api import router
 from .config import settings
 from .db import create_all
+from .pregame import router as pregame_router
 
 
 @asynccontextmanager
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.include_router(router)
+    app.include_router(pregame_router)
 
     @app.get("/health", tags=["meta"])
     def health() -> dict[str, str]:
