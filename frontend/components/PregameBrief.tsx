@@ -1,4 +1,5 @@
 import type { BriefSectionData } from "@/lib/types";
+import { DataState } from "@/components/DataState";
 
 export function PregameBrief({ sections }: { sections: BriefSectionData[] }) {
   return (
@@ -19,17 +20,21 @@ export function PregameBrief({ sections }: { sections: BriefSectionData[] }) {
         </p>
       </div>
 
-      <div className="brief-sections">
-        {sections.map((section, index) => (
-          <section className="brief-section" data-kind={section.kind} key={section.title}>
-            <div className="brief-section__index">{String(index + 1).padStart(2, "0")}</div>
-            <div>
-              <h3>{section.title}</h3>
-              <p>{section.text}</p>
-            </div>
-          </section>
-        ))}
-      </div>
+      {sections.length === 0 ? (
+        <DataState>Generate a brief to see the backend analysis.</DataState>
+      ) : (
+        <div className="brief-sections">
+          {sections.map((section, index) => (
+            <section className="brief-section" data-kind={section.kind} key={section.title}>
+              <div className="brief-section__index">{String(index + 1).padStart(2, "0")}</div>
+              <div>
+                <h3>{section.title}</h3>
+                <p>{section.text}</p>
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
     </aside>
   );
 }

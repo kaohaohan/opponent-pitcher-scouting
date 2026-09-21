@@ -36,7 +36,9 @@ npm run dev
 ```
 
 Then open <http://localhost:3000/pregame>. The current frontend phase uses
-typed mock data only and does not call the FastAPI application.
+the FastAPI application through a same-origin Next.js rewrite. The browser calls
+`/backend/api/...`; Next.js forwards those requests to `FASTAPI_BASE_URL`.
+The rewrite defaults to `http://127.0.0.1:8000` for local development.
 
 Run the tests:
 
@@ -62,6 +64,7 @@ complexity rules, and no mypy; the gate is intentionally small.
 | `REPLAY_FIXTURE_PATH` | `app/fixtures/hao_yu_lee_2025-08-14.json` | Default replay fixture |
 | `FRONTEND_DIR` | `./frontend` | Static page directory |
 | `GEMINI_API_KEY` | *(none)* | Required to call `POST /api/pregame/brief`; read from the environment only |
+| `FASTAPI_BASE_URL` | `http://127.0.0.1:8000` | Server-only Next.js rewrite target for the dashboard |
 
 ## API
 

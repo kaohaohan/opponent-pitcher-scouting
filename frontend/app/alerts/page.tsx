@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 
-import { AlertsPanel } from "@/components/AlertsPanel";
 import { AppShell } from "@/components/AppShell";
-import { alertsSummary, recentAlerts } from "@/data/mock-data";
+import { AlertsPageClient } from "@/components/AlertsPageClient";
 
 export const metadata: Metadata = {
   title: "Alerts",
@@ -18,11 +17,11 @@ export default function AlertsPage() {
       meta={
         <>
           <span className="data-window-label">Last updated</span>
-          <strong>2 minutes ago</strong>
+          <strong>Auto-refreshing</strong>
         </>
       }
     >
-      <AlertsPanel alerts={recentAlerts} summary={alertsSummary} />
+      <AlertsPageClient />
     </AppShell>
   );
 }

@@ -1,4 +1,5 @@
 import type { AlertData, AlertsSummaryData } from "@/lib/types";
+import { DataState } from "@/components/DataState";
 
 const ruleLabels: Record<AlertData["rule"], string> = {
   extra_base_hit: "extra_base_hit",
@@ -26,31 +27,35 @@ export function AlertsPanel({ alerts, summary }: AlertsPanelProps) {
         </dl>
       </div>
 
-      <div className="alert-list">
-        {alerts.map((alert) => (
-          <article className="alert-row" data-severity={alert.severity} key={alert.id}>
-            <div className="alert-row__signal" aria-hidden="true">
-              {alert.rule === "extra_base_hit" ? "2B" : alert.rule === "hard_contact" ? "EV" : "V+"}
-            </div>
-            <div className="alert-row__body">
-              <div className="alert-row__titleline">
-                <div>
-                  <h3>{alert.event}</h3>
-                  <span>{alert.player} · {alert.team}</span>
+      {alerts.length === 0 ? (
+        <DataState>No alerts have been recorded yet.</DataState>
+      ) : (
+        <div className="alert-list">
+          {alerts.map((alert) => (
+            <article className="alert-row" data-severity={alert.severity} key={alert.id}>
+              <div className="alert-row__signal" aria-hidden="true">
+                {alert.rule === "extra_base_hit" ? "2B" : alert.rule === "hard_contact" ? "EV" : "V+"}
+              </div>
+              <div className="alert-row__body">
+                <div className="alert-row__titleline">
+                  <div>
+                    <h3>{alert.event}</h3>
+                    <span>{alert.player} · {alert.team}</span>
+                  </div>
+                </div>
+                <p>{alert.detail}</p>
+                <div className="alert-row__meta">
+                  <span className="rule-code">Rule: {ruleLabels[alert.rule]}</span>
                 </div>
               </div>
-              <p>{alert.detail}</p>
-              <div className="alert-row__meta">
-                <span className="rule-code">Rule: {ruleLabels[alert.rule]}</span>
+              <div className="alert-row__moment" aria-label="Alert timing">
+                <time>{alert.timestamp}</time>
+                <span>{alert.gameMoment}</span>
               </div>
-            </div>
-            <div className="alert-row__moment" aria-label="Alert timing">
-              <time>{alert.timestamp}</time>
-              <span>{alert.gameMoment}</span>
-            </div>
-          </article>
-        ))}
-      </div>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { DataState } from "@/components/DataState";
 import { SampleSizeBadge } from "@/components/SampleSizeBadge";
 import type { CountBucketData } from "@/lib/types";
 
@@ -9,7 +10,20 @@ export function CountTendencies({ buckets }: { buckets: CountBucketData[] }) {
   const [selectedId, setSelectedId] = useState(buckets[0]?.id ?? "");
   const selected = buckets.find((bucket) => bucket.id === selectedId) ?? buckets[0];
 
-  if (!selected) return null;
+  if (!selected) {
+    return (
+      <section className="panel count-panel" aria-labelledby="count-tendencies-title">
+        <div className="panel-heading">
+          <div>
+            <p className="section-kicker">Backend-generated facts</p>
+            <h2 id="count-tendencies-title">Count Tendencies</h2>
+          </div>
+          <span className="panel-heading__meta">Select count</span>
+        </div>
+        <DataState>Generate a brief to load count-specific tendencies.</DataState>
+      </section>
+    );
+  }
 
   return (
     <section className="panel count-panel" aria-labelledby="count-tendencies-title">

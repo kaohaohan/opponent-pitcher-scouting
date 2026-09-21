@@ -1,41 +1,54 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import type { PitcherProfileData } from "@/lib/types";
 
-interface PregameControlsProps {
+export interface PregameControlsProps {
   pitcher: PitcherProfileData;
+  isGenerating?: boolean;
+  statusMessage?: string;
+  onGenerate?: (request: { pitcherId: number; startDate: string; endDate: string }) => void;
 }
 
-type GenerationState = "idle" | "generating" | "ready";
-
-export function PregameControls({ pitcher }: PregameControlsProps) {
-  const [startDate, setStartDate] = useState(pitcher.startDate);
-  const [endDate, setEndDate] = useState(pitcher.endDate);
-  const [generationState, setGenerationState] = useState<GenerationState>("idle");
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
+export function PregameControls({
+  pitcher,
+  isGenerating = false,
+  statusMessage,
+  onGenerate,
+}: PregameControlsProps) {
+  const [pitcherId, setPitcherId] = useState(pitcher.id ? String(pitcher.id) : "");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setGenerationState("generating");
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setGenerationState("ready"), 650);
+    const parsedPitcherId = Number(pitcherId);
+    if (!Number.isInteger(parsedPitcherId) || parsedPitcherId <= 0) {
+      setValidationError("Enter a valid pitcher ID.");
+      return;
+    }
+    if (!startDate || !endDate || startDate > endDate) {
+      setValidationError("Choose a valid start and end date.");
+      return;
+    }
+    setValidationError(null);
+    onGenerate?.({ pitcherId: parsedPitcherId, startDate, endDate });
   }
 
   return (
     <form className="pregame-controls" onSubmit={handleSubmit}>
       <label className="field-label">
         Pitcher
-        <select defaultValue={pitcher.id}>
-          <option value={pitcher.id}>{pitcher.name}</option>
-        </select>
+        <input
+          inputMode="numeric"
+          min="1"
+          onChange={(event) => setPitcherId(event.target.value)}
+          placeholder="e.g. 669302"
+          type="number"
+          value={pitcherId}
+        />
       </label>
       <div className="date-fields">
         <label className="field-label">
@@ -56,14 +69,12 @@ export function PregameControls({ pitcher }: PregameControlsProps) {
           />
         </label>
       </div>
-      <button className="primary-button" disabled={generationState === "generating"} type="submit">
+      <button className="primary-button" disabled={isGenerating} type="submit">
         <span aria-hidden="true">↻</span>
-        {generationState === "generating" ? "Generating…" : "Generate brief"}
+        {isGenerating ? "Generating…" : "Generate brief"}
       </button>
       <p className="control-status" aria-live="polite">
-        {generationState === "ready"
-          ? "Mock brief refreshed for the selected window."
-          : "Uses prepared mock data in this frontend phase."}
+        {validationError ?? statusMessage ?? "Generate a brief for the selected pitcher and date window."}
       </p>
     </form>
   );

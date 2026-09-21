@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 
 import type { NavSection } from "@/lib/types";
+import { useAlerts } from "@/lib/queries";
 
 const navigation: Array<{ id: NavSection; label: string; href: string }> = [
   { id: "pregame", label: "Pregame", href: "/pregame" },
@@ -9,6 +12,8 @@ const navigation: Array<{ id: NavSection; label: string; href: string }> = [
 ];
 
 export function TopNav({ active }: { active: NavSection }) {
+  const alertsQuery = useAlerts();
+
   return (
     <header className="topbar">
       <div className="topbar__inner">
@@ -31,14 +36,16 @@ export function TopNav({ active }: { active: NavSection }) {
               key={item.id}
             >
               {item.label}
-              {item.id === "alerts" ? <span className="nav-count">4</span> : null}
+              {item.id === "alerts" && alertsQuery.data ? (
+                <span className="nav-count">{alertsQuery.data.length}</span>
+              ) : null}
             </Link>
           ))}
         </nav>
 
-        <div className="system-status" title="Mock data mode">
+        <div className="system-status" title="FastAPI data mode">
           <span className="system-status__dot" aria-hidden="true" />
-          Mock workspace
+          API workspace
         </div>
       </div>
     </header>

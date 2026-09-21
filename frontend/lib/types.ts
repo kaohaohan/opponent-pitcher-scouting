@@ -3,16 +3,16 @@ export type SampleStatus = "sufficient" | "insufficient_sample";
 export type NavSection = "pregame" | "player-watch" | "alerts";
 
 export interface PitcherProfileData {
-  id: number;
+  id: number | null;
   name: string;
-  throws: "L" | "R";
+  throws: "L" | "R" | "—";
   team: string;
   startDate: string;
   endDate: string;
   dateRangeLabel: string;
   dateRangeShortLabel: string;
   totalPitches: number;
-  averageVelocity: number;
+  averageVelocity: number | null;
   overallStatus: SampleStatus;
 }
 
