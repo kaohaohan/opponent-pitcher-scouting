@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
+import { PitcherAvatar } from "@/components/PitcherAvatar";
 import { usePitcherSearch } from "@/lib/queries";
 import type { PitcherProfileData } from "@/lib/types";
 
@@ -9,6 +10,7 @@ export interface SelectedPitcher {
   id: number;
   name: string;
   team: string | null;
+  throws: string | null;
 }
 
 export interface PregameControlsProps {
@@ -18,12 +20,14 @@ export interface PregameControlsProps {
   initialPitcherId?: number;
   initialPitcherName?: string;
   initialPitcherTeam?: string | null;
+  initialPitcherThrows?: string | null;
   onGenerate?: (request: {
     pitcherId: number;
     startDate: string;
     endDate: string;
     pitcherName?: string;
     pitcherTeam?: string | null;
+    pitcherThrows?: string | null;
   }) => void;
 }
 
@@ -34,11 +38,17 @@ export function PregameControls({
   initialPitcherId,
   initialPitcherName,
   initialPitcherTeam,
+  initialPitcherThrows,
   onGenerate,
 }: PregameControlsProps) {
   const [selectedPitcher, setSelectedPitcher] = useState<SelectedPitcher | null>(
     initialPitcherId && initialPitcherName
-      ? { id: initialPitcherId, name: initialPitcherName, team: initialPitcherTeam ?? null }
+      ? {
+          id: initialPitcherId,
+          name: initialPitcherName,
+          team: initialPitcherTeam ?? null,
+          throws: initialPitcherThrows ?? null,
+        }
       : null,
   );
   const [searchTerm, setSearchTerm] = useState(initialPitcherName ?? "");
@@ -54,12 +64,17 @@ export function PregameControls({
   // this component has already mounted, since the route doesn't remount.
   useEffect(() => {
     if (initialPitcherId && initialPitcherName) {
-      setSelectedPitcher({ id: initialPitcherId, name: initialPitcherName, team: initialPitcherTeam ?? null });
+      setSelectedPitcher({
+        id: initialPitcherId,
+        name: initialPitcherName,
+        team: initialPitcherTeam ?? null,
+        throws: initialPitcherThrows ?? null,
+      });
       setSearchTerm(initialPitcherName);
       setIsDropdownOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPitcherId, initialPitcherName, initialPitcherTeam]);
+  }, [initialPitcherId, initialPitcherName, initialPitcherTeam, initialPitcherThrows]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedTerm(searchTerm), 300);
@@ -75,8 +90,8 @@ export function PregameControls({
     setIsDropdownOpen(true);
   }
 
-  function handleSelect(match: { id: number; name: string; team: string | null }) {
-    setSelectedPitcher({ id: match.id, name: match.name, team: match.team });
+  function handleSelect(match: { id: number; name: string; team: string | null; throws: string | null }) {
+    setSelectedPitcher({ id: match.id, name: match.name, team: match.team, throws: match.throws });
     setSearchTerm(match.name);
     setIsDropdownOpen(false);
     setValidationError(null);
@@ -111,6 +126,7 @@ export function PregameControls({
       endDate,
       pitcherName: selectedPitcher.name,
       pitcherTeam: selectedPitcher.team,
+      pitcherThrows: selectedPitcher.throws,
     });
   }
 
@@ -158,10 +174,16 @@ export function PregameControls({
                     role="option"
                     type="button"
                   >
-                    <span>{match.name}</span>
-                    <small>
-                      {match.team ?? "Team unknown"} · ID {match.id}
-                    </small>
+                    <PitcherAvatar name={match.name} playerId={match.id} size={28} />
+                    <span className="pitcher-search__option-text">
+                      <span>
+                        {match.name}
+                        {match.throws ? ` · ${match.throws}HP` : ""}
+                      </span>
+                      <small>
+                        {match.team ?? "Team unknown"} · ID {match.id}
+                      </small>
+                    </span>
                   </button>
                 ))
               )}
@@ -169,8 +191,12 @@ export function PregameControls({
           ) : null}
           {selectedPitcher ? (
             <p className="pitcher-search__selected">
-              Selected: {selectedPitcher.name}
-              {selectedPitcher.team ? ` · ${selectedPitcher.team}` : ""} · ID {selectedPitcher.id}
+              <PitcherAvatar name={selectedPitcher.name} playerId={selectedPitcher.id} size={24} />
+              <span>
+                Selected: {selectedPitcher.name}
+                {selectedPitcher.team ? ` · ${selectedPitcher.team}` : ""}
+                {selectedPitcher.throws ? ` · ${selectedPitcher.throws}HP` : ""} · ID {selectedPitcher.id}
+              </span>
             </p>
           ) : null}
         </div>

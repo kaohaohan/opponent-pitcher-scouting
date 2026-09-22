@@ -16,6 +16,11 @@ interface PitcherMeta {
   id: number;
   name: string;
   team: string | null;
+  throws: "L" | "R" | "—";
+}
+
+function normalizeThrows(value: string | null | undefined): "L" | "R" | "—" {
+  return value === "L" || value === "R" ? value : "—";
 }
 
 export function PregamePageClient() {
@@ -34,7 +39,12 @@ export function PregamePageClient() {
     pitcherMeta && pitcherMeta.id === rawView.pitcher.id
       ? {
           ...rawView,
-          pitcher: { ...rawView.pitcher, name: pitcherMeta.name, team: pitcherMeta.team ?? "—" },
+          pitcher: {
+            ...rawView.pitcher,
+            name: pitcherMeta.name,
+            team: pitcherMeta.team ?? "—",
+            throws: pitcherMeta.throws,
+          },
         }
       : rawView;
 
@@ -45,6 +55,7 @@ export function PregamePageClient() {
       initialPitcherId={hasHandoff ? handoffId : undefined}
       initialPitcherName={hasHandoff ? (handoffName as string) : undefined}
       initialPitcherTeam={searchParams.get("pitcherTeam")}
+      initialPitcherThrows={searchParams.get("pitcherThrows")}
       isLoading={briefQuery.isFetching}
       onGenerate={(nextRequest) => {
         setRequest({
@@ -54,7 +65,12 @@ export function PregamePageClient() {
         });
         setPitcherMeta(
           nextRequest.pitcherName
-            ? { id: nextRequest.pitcherId, name: nextRequest.pitcherName, team: nextRequest.pitcherTeam ?? null }
+            ? {
+                id: nextRequest.pitcherId,
+                name: nextRequest.pitcherName,
+                team: nextRequest.pitcherTeam ?? null,
+                throws: normalizeThrows(nextRequest.pitcherThrows),
+              }
             : null,
         );
       }}

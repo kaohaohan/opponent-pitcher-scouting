@@ -1,5 +1,6 @@
 import type { ComparisonNoteData, PlayerWatchData, PregameLiveComparisonData } from "@/lib/types";
 import { ComparisonNote } from "@/components/ComparisonNote";
+import { PitcherAvatar } from "@/components/PitcherAvatar";
 import { PitchMixComparison } from "@/components/PitchMixComparison";
 
 function formatMeasurement(value: number | null, unit: string) {
@@ -33,7 +34,11 @@ export function PlayerWatch({
     <div className="watch-layout">
       <section className="panel watch-hero">
         <div className="watch-hero__identity">
-          <div className="player-number" aria-hidden="true">{player.jerseyNumber}</div>
+          {isPitcher ? (
+            <PitcherAvatar name={player.name} playerId={player.playerId} size={50} />
+          ) : (
+            <div className="player-number" aria-hidden="true">{player.jerseyNumber}</div>
+          )}
           <div>
             <p className="section-kicker">{isPitcher ? "Tracked pitcher" : "Tracked hitter"}</p>
             <h2>{player.name}</h2>

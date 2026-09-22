@@ -62,6 +62,7 @@ export interface PlateAppearanceData {
 
 export interface PlayerWatchData {
   role: "batter" | "pitcher";
+  playerId: number;
   name: string;
   jerseyNumber: string;
   team: string;

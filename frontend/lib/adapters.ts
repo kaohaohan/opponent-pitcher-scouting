@@ -278,6 +278,7 @@ export function toPlayerWatchData(
 
   return {
     role,
+    playerId: player.id,
     name: player.name,
     jerseyNumber: "—",
     team: player.team,

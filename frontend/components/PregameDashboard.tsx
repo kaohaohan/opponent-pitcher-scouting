@@ -1,4 +1,5 @@
 import { CountTendencies } from "@/components/CountTendencies";
+import { PitcherAvatar } from "@/components/PitcherAvatar";
 import { PitchMix } from "@/components/PitchMix";
 import { PregameBrief } from "@/components/PregameBrief";
 import { PregameControls } from "@/components/PregameControls";
@@ -22,6 +23,7 @@ interface PregameDashboardProps {
   initialPitcherId?: number;
   initialPitcherName?: string;
   initialPitcherTeam?: string | null;
+  initialPitcherThrows?: string | null;
   onRetry?: () => void;
   onGenerate?: (request: {
     pitcherId: number;
@@ -29,6 +31,7 @@ interface PregameDashboardProps {
     endDate: string;
     pitcherName?: string;
     pitcherTeam?: string | null;
+    pitcherThrows?: string | null;
   }) => void;
 }
 
@@ -43,6 +46,7 @@ export function PregameDashboard({
   initialPitcherId,
   initialPitcherName,
   initialPitcherTeam,
+  initialPitcherThrows,
   onRetry,
   onGenerate,
 }: PregameDashboardProps) {
@@ -60,6 +64,9 @@ export function PregameDashboard({
         </div>
 
         <div className="pitcher-identity">
+          {pitcher.id !== null ? (
+            <PitcherAvatar name={pitcher.name} playerId={pitcher.id} size={56} />
+          ) : null}
           <div>
             <h3>{pitcher.name}</h3>
             {pitcher.team === "—" ? null : <p>{pitcher.team}</p>}
@@ -99,6 +106,7 @@ export function PregameDashboard({
           initialPitcherId={initialPitcherId}
           initialPitcherName={initialPitcherName}
           initialPitcherTeam={initialPitcherTeam}
+          initialPitcherThrows={initialPitcherThrows}
           isGenerating={isLoading}
           onGenerate={onGenerate}
           pitcher={pitcher}
