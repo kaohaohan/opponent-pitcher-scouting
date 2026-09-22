@@ -6,6 +6,8 @@ ORM rows into response models. No domain logic lives here.
 
 from __future__ import annotations
 
+from datetime import date as date_cls
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -20,9 +22,17 @@ from ..schemas import (
     PlateAppearanceRead,
     PlayerRead,
     ReplayReport,
+    ScheduleGameRead,
     WatchRole,
 )
-from ..sources import LiveGameNotFound, LiveSource, LiveSourceError, ReplaySource
+from ..sources import (
+    LiveGameNotFound,
+    LiveSource,
+    LiveSourceError,
+    ReplaySource,
+    ScheduleSource,
+    ScheduleSourceError,
+)
 
 router = APIRouter(prefix="/api", tags=["watch"])
 
@@ -108,6 +118,23 @@ def sync_live(request: LiveSyncRequest) -> LiveSyncReport:
         game_state=source.game_state,
         game_status=source.game_status,
     )
+
+
+@router.get("/live/games", response_model=list[ScheduleGameRead])
+def get_live_games(date: str = Query(...)) -> list[ScheduleGameRead]:
+    """MLB's schedule for one date, so a user can pick a game without a gamePk."""
+    try:
+        parsed_date = date_cls.fromisoformat(date)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="date must be formatted as YYYY-MM-DD",
+        ) from exc
+    source = ScheduleSource()
+    try:
+        return source.games_for_date(parsed_date.isoformat())
+    except ScheduleSourceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 @router.get(

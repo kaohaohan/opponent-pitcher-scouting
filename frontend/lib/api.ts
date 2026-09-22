@@ -185,6 +185,22 @@ export function getGameParticipants(gameId: number): Promise<GameParticipantsDto
   return fetchJson<GameParticipantsDto>(`/api/live/games/${gameId}/participants`);
 }
 
+export interface ScheduleGameDto {
+  game_id: string;
+  game_date: string;
+  away_team: TeamDto;
+  home_team: TeamDto;
+  status: string;
+  start_time: string | null;
+  away_score: number | null;
+  home_score: number | null;
+}
+
+export function getSchedule(date: string): Promise<ScheduleGameDto[]> {
+  const params = new URLSearchParams({ date });
+  return fetchJson<ScheduleGameDto[]>(`/api/live/games?${params.toString()}`);
+}
+
 export function syncLive(request: LiveSyncRequest): Promise<LiveSyncReport> {
   return fetchJson<LiveSyncReport>("/api/live/sync", {
     method: "POST",

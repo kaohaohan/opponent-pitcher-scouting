@@ -14,7 +14,7 @@ from app import main
 from app.api import routes
 from app.db import get_session
 from app.main import create_app
-from app.sources import LiveSource
+from app.sources import LiveSource, ScheduleSource
 
 
 @pytest.fixture()
@@ -232,3 +232,77 @@ def test_game_participants_endpoint(client, monkeypatch):
     assert by_id[542881]["roles"] == ["pitcher"]
     assert by_id[701002]["roles"] == ["batter", "pitcher"]
     assert client.get("/api/players").json() == []
+
+
+def test_live_games_endpoint_returns_schedule_for_date(client, monkeypatch):
+    payload = {
+        "dates": [
+            {
+                "date": "2025-08-14",
+                "games": [
+                    {
+                        "gamePk": 776750,
+                        "gameDate": "2025-08-14T17:05:00Z",
+                        "status": {"abstractGameState": "Final", "detailedState": "Final"},
+                        "teams": {
+                            "away": {"team": {"id": 136, "name": "Seattle Mariners"}, "score": 3},
+                            "home": {"team": {"id": 110, "name": "Baltimore Orioles"}, "score": 5},
+                        },
+                    }
+                ],
+            }
+        ]
+    }
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+    monkeypatch.setattr(
+        routes,
+        "ScheduleSource",
+        lambda: ScheduleSource(client=httpx.Client(transport=transport)),
+    )
+    response = client.get("/api/live/games", params={"date": "2025-08-14"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["game_id"] == "776750"
+    assert body[0]["away_team"]["name"] == "Seattle Mariners"
+    assert body[0]["home_team"]["name"] == "Baltimore Orioles"
+    assert body[0]["status"] == "Final"
+    assert body[0]["away_score"] == 3
+    assert body[0]["home_score"] == 5
+
+
+def test_live_games_endpoint_returns_empty_list_when_no_games(client, monkeypatch):
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"dates": []}))
+    monkeypatch.setattr(
+        routes,
+        "ScheduleSource",
+        lambda: ScheduleSource(client=httpx.Client(transport=transport)),
+    )
+
+    response = client.get("/api/live/games", params={"date": "2025-08-14"})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_live_games_endpoint_reports_upstream_failure(client, monkeypatch):
+    def raise_transport(request):
+        raise httpx.ConnectError("boom", request=request)
+
+    transport = httpx.MockTransport(raise_transport)
+    monkeypatch.setattr(
+        routes,
+        "ScheduleSource",
+        lambda: ScheduleSource(client=httpx.Client(transport=transport)),
+    )
+
+    response = client.get("/api/live/games", params={"date": "2025-08-14"})
+
+    assert response.status_code == 502
+
+
+def test_live_games_endpoint_validates_date_format(client):
+    response = client.get("/api/live/games", params={"date": "not-a-date"})
+
+    assert response.status_code == 400

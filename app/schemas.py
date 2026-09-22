@@ -224,3 +224,14 @@ class LiveSyncReport(ReplayReport):
     game_id: str
     game_state: str | None = None
     game_status: str | None = None
+
+
+class ScheduleGameRead(BaseModel):
+    game_id: str
+    game_date: str
+    away_team: TeamRead
+    home_team: TeamRead
+    status: str
+    start_time: str | None = None
+    away_score: int | None = None
+    home_score: int | None = None

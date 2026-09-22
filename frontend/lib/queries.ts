@@ -10,6 +10,7 @@ import {
   getGameParticipants,
   getPlayers,
   getPregameLiveComparison,
+  getSchedule,
   searchPitchers,
   syncLive,
   type LiveSyncRequest,
@@ -46,6 +47,15 @@ export function useEvents(
     staleTime: 10 * 1000,
     refetchInterval: 15 * 1000,
     refetchIntervalInBackground: false,
+    retry: 1,
+  });
+}
+
+export function useSchedule(date: string) {
+  return useQuery({
+    queryKey: ["mlb-schedule", date],
+    queryFn: () => getSchedule(date),
+    staleTime: 30 * 1000,
     retry: 1,
   });
 }

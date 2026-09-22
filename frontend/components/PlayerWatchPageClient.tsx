@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { DataState } from "@/components/DataState";
+import { GamePicker } from "@/components/GamePicker";
 import { PitcherAvatar } from "@/components/PitcherAvatar";
 import { PlayerWatch, type PitcherComparisonProps } from "@/components/PlayerWatch";
 import {
@@ -221,15 +222,32 @@ export function PlayerWatchPageClient() {
     <DataState>No announced or observed participants are available yet.</DataState>
   ) : null;
 
+  const gamePicker = (
+    <GamePicker
+      selectedGameId={monitoring.gameId}
+      isMonitoring={monitoring.isMonitoring}
+      onSelectGame={(gameId) => {
+        setGameIdInput(String(gameId));
+        setGameIdError(null);
+        monitoring.loadGame(gameId);
+      }}
+    />
+  );
+
   const controls = (
     <section className="panel live-controls" aria-labelledby="live-controls-title">
       <div className="panel-heading">
         <div><p className="section-kicker">MLB live feed</p><h2 id="live-controls-title">Monitor a game</h2></div>
         <span className={monitoring.isMonitoring ? "live-control-status is-active" : "live-control-status"}>{monitoring.isMonitoring ? "Monitoring" : "Stopped"}</span>
       </div>
-      <div className="live-controls__grid">
-        <label className="field-label">Game ID<input value={gameIdInput} onChange={(event) => setGameIdInput(event.target.value)} placeholder="776743" inputMode="numeric" disabled={monitoring.isMonitoring} /></label>
-        <button className="secondary-button" type="button" onClick={loadGame} disabled={monitoring.isMonitoring || participantsQuery.isFetching}>Load game</button>
+      <details className="manual-game-id">
+        <summary>Enter Game ID manually</summary>
+        <div className="live-controls__grid">
+          <label className="field-label">Game ID<input value={gameIdInput} onChange={(event) => setGameIdInput(event.target.value)} placeholder="776743" inputMode="numeric" disabled={monitoring.isMonitoring} /></label>
+          <button className="secondary-button" type="button" onClick={loadGame} disabled={monitoring.isMonitoring || participantsQuery.isFetching}>Load game</button>
+        </div>
+      </details>
+      <div className="live-controls__grid live-controls__grid--monitor">
         <button className="primary-button" type="button" onClick={monitoring.isMonitoring ? monitoring.stopMonitoring : monitoring.startMonitoring}>{monitoring.isMonitoring ? "Stop monitoring" : "Start monitoring"}</button>
       </div>
       {participantsQuery.data ? (
@@ -295,14 +313,14 @@ export function PlayerWatchPageClient() {
   );
 
   if (alertsQuery.isLoading || eventsQuery.isLoading) {
-    return <>{controls}<DataState kind="loading">Loading live pitcher data...</DataState></>;
+    return <>{gamePicker}{controls}<DataState kind="loading">Loading live pitcher data...</DataState></>;
   }
   const error = alertsQuery.error ?? eventsQuery.error;
   const hasCachedData = Boolean(alertsQuery.data || eventsQuery.data);
   if (error && !hasCachedData) {
-    return <>{controls}<DataState kind="error" onRetry={() => void Promise.all([alertsQuery.refetch(), eventsQuery.refetch()])}>{errorMessage(error)}</DataState></>;
+    return <>{gamePicker}{controls}<DataState kind="error" onRetry={() => void Promise.all([alertsQuery.refetch(), eventsQuery.refetch()])}>{errorMessage(error)}</DataState></>;
   }
-  if (!subject) return <>{controls}<DataState>Choose a batter or pitcher to monitor.</DataState></>;
+  if (!subject) return <>{gamePicker}{controls}<DataState>Choose a batter or pitcher to monitor.</DataState></>;
 
   const pregameHandoffHref =
     subject.role === "pitcher"
@@ -360,6 +378,7 @@ export function PlayerWatchPageClient() {
       ) : null;
     return (
       <>
+        {gamePicker}
         {controls}
         {subjectSelector}
         {viewingIdentity}
@@ -375,6 +394,7 @@ export function PlayerWatchPageClient() {
   }
 
   return <>
+    {gamePicker}
     {controls}
     {subjectSelector}
     {pregameHandoffLink}
