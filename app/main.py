@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api import router
+from .comparison import router as comparison_router
 from .config import settings
 from .db import create_all
 from .pregame import router as pregame_router
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(router)
     app.include_router(pregame_router)
+    app.include_router(comparison_router)
 
     @app.get("/health", tags=["meta"])
     def health() -> dict[str, str]:

@@ -63,7 +63,7 @@ complexity rules, and no mypy; the gate is intentionally small.
 | `DATABASE_URL` | `sqlite:///./watch.db` | SQLAlchemy URL |
 | `REPLAY_FIXTURE_PATH` | `app/fixtures/hao_yu_lee_2025-08-14.json` | Default replay fixture |
 | `FRONTEND_DIR` | `./frontend` | Static page directory |
-| `GEMINI_API_KEY` | *(none)* | Required to call `POST /api/pregame/brief`; read from the environment only |
+| `GEMINI_API_KEY` | *(none)* | Required to call `POST /api/pregame/brief` or `POST .../comparison/note`; read from the environment only |
 | `FASTAPI_BASE_URL` | `http://127.0.0.1:8000` | Server-only Next.js rewrite target for the dashboard |
 
 ## API
@@ -77,6 +77,8 @@ complexity rules, and no mypy; the gate is intentionally small.
 | `GET` | `/api/live/games/{game_id}/participants` | Read-only MLB game participant discovery for batter/pitcher selection |
 | `POST` | `/api/live/sync` | Fetches one MLB live snapshot and ingests completed PAs for selected `batter_ids` and/or `pitcher_ids`; legacy `watched_player_ids` still means batter IDs |
 | `POST` | `/api/pregame/brief` | Fetches one pitcher's recent Statcast pitches, aggregates pitch usage, and returns an LLM-written brief plus the structured context it was built from. Body: `pitcher_id`, `start_date`, `end_date` |
+| `GET` | `/api/live/games/{game_id}/pitchers/{pitcher_id}/comparison` | Deterministic pregame-vs-live pitch-mix comparison for one pitcher. Never calls Gemini — safe to poll. Query: `start_date`, `end_date` |
+| `POST` | `/api/live/games/{game_id}/pitchers/{pitcher_id}/comparison/note` | On-demand Gemini explanation of that same comparison. Query: `start_date`, `end_date` (recomputes the comparison internally; no request body). A failure here never affects the GET route above |
 | `GET` | `/health` | Liveness |
 
 Interactive docs at `/docs`.
@@ -405,3 +407,121 @@ repeat the POST and confirm `stored` is zero, duplicate counts increase, and
 database rows/alerts do not. The automated tests use the trimmed historical
 snapshot in `tests/fixtures/mlb_live_feed_776743_20250814_230000.json` and never
 contact MLB.
+## Phase 5: Pregame vs. live comparison
+
+A third, self-contained feature living in `app/comparison/`, connecting
+Phase 2 (pregame Statcast baseline) and Phase 3/4 (live MLB feed) without
+modifying either: for one watched pitcher in one game, compute how their
+live pitch mix compares to their pregame baseline, then optionally ask
+Gemini to narrate the comparison already computed.
+
+**The backend calculates every number. Gemini only explains rows the
+backend already flagged as notable.** Deliberately two endpoints, not
+one: the numeric comparison never calls Gemini, so it stays a full `200`
+even when the AI note is unavailable, times out, or replies with
+something that doesn't parse.
+
+```
+StatcastPitchSource ---> PregameContextBuilder ---\
+        (Phase 2, reused)                          \
+                                                      --> build_comparison --> PregameLiveComparison
+LiveSource.fetch_snapshot() -> live_metrics.py ------/         |                        |
+        (Phase 3/4, one new                                    |                GeminiComparisonProvider
+         public method)                                        |                        |
+                                                                 |                 ComparisonNote
+                                       GET  .../comparison  <----'
+                                       POST .../comparison/note  <-- (Gemini, on-demand only)
+```
+
+```
+app/comparison/
+├── schemas.py            PregameLiveComparison(Row), ComparisonNote — the API contracts
+├── sample_size.py         Live-specific thresholds (see below) — distinct from Phase 2's
+├── live_metrics.py        compute_live_pitcher_metrics() — pure, reads a raw MLB feed snapshot
+├── compare.py              build_comparison() — combines a PregameContext and LivePitcherMetrics
+├── llm/
+│   ├── base.py               ComparisonNoteProvider ABC (structured in, structured out)
+│   └── gemini.py              GeminiComparisonProvider (google-genai, JSON response schema)
+└── api.py                 GET .../comparison, POST .../comparison/note
+```
+
+No new database table and no pitch-level persistence: a single MLB feed
+snapshot already carries every pitch a pitcher has thrown in the game so
+far (`liveData.plays.allPlays[*].playEvents[*]`, not just each play's
+terminal pitch), so `live_metrics.py` reads it straight from the same
+fetch `LiveSource.fetch_snapshot()` already makes — a genuinely new
+public method on `LiveSource`, mirroring its existing
+`discover_participants()`. Pitches from an in-progress at-bat count
+toward the live totals, not just completed plate appearances.
+
+`avg_velocity_by_pitch_type()` is a small, additive addition to
+`app/pregame/aggregation.py` (with a matching `avg_velocity` field on
+`PitchTypeUsage`) — the only change to Phase 2, needed because Statcast's
+`release_speed` was already fetched but never aggregated by pitch type.
+
+**Pregame and live pitch types use different vocabularies, and both sides
+have to agree before a row can be compared.** Baseball Savant's
+`pitch_type` column is a short code (`FF`, `SL`, `CH`, ...); the MLB live
+feed's `details.type` is usually a `{code, description}` pair, but a
+trimmed feed can carry only the human-readable `description` (`"Slider"`).
+`live_metrics.py` normalizes every live pitch to the same short-code
+vocabulary — preferring `code` when present, falling back to a
+`description -> code` lookup table otherwise — so a comparison row's key
+lines up with its Statcast baseline instead of two differently-spelled
+rows that never match.
+
+### Sample-size rules
+
+Live in-game samples are much smaller than the multi-game Statcast window
+Phase 2 guards, so Phase 5 uses its own, smaller thresholds
+(`app/comparison/sample_size.py`), not Phase 2's `MIN_SAMPLE_SIZE = 20`:
+
+| Threshold | Value | Guards |
+| --- | --- | --- |
+| `MIN_LIVE_PITCHES_FOR_ANY_CLAIM` | 10 | The outing as a whole — below it, `overall_live_status` is insufficient and no row can be notable |
+| `MIN_PITCH_TYPE_SAMPLE` | 5 | One pitch type's own row — below it, that row's `status` is insufficient regardless of the pitcher's overall count |
+| `NOTABLE_USAGE_DELTA_PP` | 10.0 pp | A sufficient row's usage delta must clear this to set `is_notable` |
+| `NOTABLE_VELOCITY_DELTA_MPH` | 1.5 mph | A sufficient row's velocity delta must clear this to set `is_notable` |
+
+Every row always carries its raw `usage_delta_pp`/`velocity_delta` —
+`is_notable` only gates whether Gemini may describe that delta as a
+change, never whether the number itself is shown.
+
+### The LLM boundary
+
+`GeminiComparisonProvider.generate_note(comparison: PregameLiveComparison)
+-> ComparisonNote` mirrors Phase 2's boundary discipline (structured
+input, no database/source access) but with **structured output**: the
+Gemini call is made with `response_mime_type="application/json"` and a
+`response_schema=ComparisonNote`, and the reply is parsed with
+`ComparisonNote.model_validate_json`. A reply that doesn't parse or
+validate raises `GeminiMalformedResponseError` — a failure mode Phase 2's
+free-text contract has no equivalent of. `GeminiConfigurationError`/
+`GeminiRequestError` are reused directly from `app.pregame.llm.gemini`.
+The call carries an explicit 15-second timeout
+(`types.HttpOptions(timeout=15_000)`), which Phase 2's brief call does
+not set.
+
+### Failure behavior
+
+| Condition | `GET .../comparison` | `POST .../comparison/note` |
+| --- | --- | --- |
+| No pregame baseline | `200`, `baseline_available: false`, live-only rows | `200`, note explains no baseline |
+| Insufficient live sample | `200`, `overall_live_status: "insufficient_sample"` | `200`, cautious `sample_note` |
+| `GEMINI_API_KEY` unset | unaffected (never calls Gemini) | `503` |
+| Gemini request failure/timeout | unaffected | `502` |
+| Gemini malformed response | unaffected | `502` |
+| Baseball Savant down | `502` | `502` |
+| MLB feed down | `502` | `502` |
+| Unsupported pitcher / no data anywhere | `200`, both availability flags `false`, empty `rows` | `200`, note says nothing to compare |
+| Game not found | `404` | `404` |
+
+Automated tests never contact MLB, Baseball Savant, or Gemini —
+`tests/comparison/fakes.py` provides `StubLiveSource`,
+`FakeComparisonNoteProvider`, and `FakeGenAIClient` for the same
+dependency-override/monkeypatch seams Phase 2's and Phase 3/4's tests
+already use.
+
+Not implemented, and intentionally out of scope for this phase: whiff/
+called-strike rates, handedness splits, next-pitch prediction, cached or
+persisted baselines, and any UI beyond a compact section on Pitcher Watch.

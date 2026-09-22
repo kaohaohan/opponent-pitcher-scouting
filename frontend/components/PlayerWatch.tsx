@@ -1,10 +1,31 @@
-import type { PlayerWatchData } from "@/lib/types";
+import type { ComparisonNoteData, PlayerWatchData, PregameLiveComparisonData } from "@/lib/types";
+import { ComparisonNote } from "@/components/ComparisonNote";
+import { PitchMixComparison } from "@/components/PitchMixComparison";
 
 function formatMeasurement(value: number | null, unit: string) {
   return value === null ? "—" : `${value.toFixed(1)} ${unit}`;
 }
 
-export function PlayerWatch({ player }: { player: PlayerWatchData }) {
+export interface PitcherComparisonProps {
+  comparison: PregameLiveComparisonData | null;
+  note: ComparisonNoteData | null;
+  noteLoading: boolean;
+  noteError: string | null;
+  onGenerateNote: () => void;
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (value: string) => void;
+  onEndDateChange: (value: string) => void;
+}
+
+export function PlayerWatch({
+  player,
+  pitcherComparison,
+}: {
+  player: PlayerWatchData;
+  // Only meaningful (and only rendered) when `player.role === "pitcher"`.
+  pitcherComparison?: PitcherComparisonProps;
+}) {
   const latest = player.latestPlateAppearance;
   const isPitcher = player.role === "pitcher";
 
@@ -120,6 +141,42 @@ export function PlayerWatch({ player }: { player: PlayerWatchData }) {
           </table>
         </div>
       </section>
+
+      {isPitcher && pitcherComparison ? (
+        <div className="comparison-section">
+          <form
+            className="comparison-date-form"
+            onSubmit={(event) => event.preventDefault()}
+            aria-label="Pregame baseline date range"
+          >
+            <label className="field-label">
+              Baseline start
+              <input
+                type="date"
+                value={pitcherComparison.startDate}
+                onChange={(event) => pitcherComparison.onStartDateChange(event.target.value)}
+              />
+            </label>
+            <label className="field-label">
+              Baseline end
+              <input
+                type="date"
+                value={pitcherComparison.endDate}
+                onChange={(event) => pitcherComparison.onEndDateChange(event.target.value)}
+              />
+            </label>
+          </form>
+
+          <PitchMixComparison comparison={pitcherComparison.comparison} />
+
+          <ComparisonNote
+            note={pitcherComparison.note}
+            isLoading={pitcherComparison.noteLoading}
+            error={pitcherComparison.noteError}
+            onGenerate={pitcherComparison.onGenerateNote}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

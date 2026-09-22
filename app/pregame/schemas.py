@@ -54,6 +54,9 @@ class PitchTypeUsage(BaseModel):
     percentage: float
     sample_size: int
     status: SampleStatus
+    #: Average `release_speed` for this pitch type, or `None` when every
+    #: instance of it was unmeasured. Never `0.0` for "no data".
+    avg_velocity: float | None = None
 
 
 class PitchCountUsage(BaseModel):

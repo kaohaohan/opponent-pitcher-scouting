@@ -99,3 +99,40 @@ export interface AlertsSummaryData {
   highPriority: number;
   trackedPlayers: number;
 }
+
+export interface PitchComparisonRowData {
+  pitchType: string;
+  pitchName: string;
+  tone: "fastball" | "breaking" | "offspeed" | "other";
+  baselineUsagePct: number | null;
+  baselineVelocity: number | null;
+  baselineSampleSize: number;
+  liveUsagePct: number | null;
+  liveVelocity: number | null;
+  liveSampleSize: number;
+  usageDeltaPp: number | null;
+  velocityDelta: number | null;
+  status: SampleStatus;
+  isNotable: boolean;
+}
+
+export interface PregameLiveComparisonData {
+  gameId: string;
+  pitcherId: number;
+  pitcherName: string | null;
+  baselineStartDate: string;
+  baselineEndDate: string;
+  baselineAvailable: boolean;
+  baselineTotalPitches: number;
+  liveAvailable: boolean;
+  liveTotalPitches: number;
+  overallLiveStatus: SampleStatus;
+  rows: PitchComparisonRowData[];
+  limitations: string[];
+}
+
+export interface ComparisonNoteData {
+  summary: string;
+  notableChanges: Array<{ metric: string; description: string }>;
+  sampleNote: string;
+}

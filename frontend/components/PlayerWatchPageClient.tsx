@@ -4,10 +4,24 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { DataState } from "@/components/DataState";
-import { PlayerWatch } from "@/components/PlayerWatch";
-import { subjectFromParticipant, toPlayerWatchData, type WatchSubject } from "@/lib/adapters";
+import { PlayerWatch, type PitcherComparisonProps } from "@/components/PlayerWatch";
+import {
+  subjectFromParticipant,
+  toComparisonNote,
+  toPlayerWatchData,
+  toPregameLiveComparison,
+  type WatchSubject,
+} from "@/lib/adapters";
 import type { GameParticipantDto } from "@/lib/api";
-import { useAlerts, useEvents, useGameParticipants, useLiveSync } from "@/lib/queries";
+import {
+  useAlerts,
+  useComparisonNote,
+  useEvents,
+  useGameParticipants,
+  useLiveSync,
+  usePregameLiveComparison,
+  type ComparisonRequest,
+} from "@/lib/queries";
 
 type WatchRole = "batter" | "pitcher";
 
@@ -48,6 +62,9 @@ export function PlayerWatchPageClient() {
   const [selectedSubject, setSelectedSubject] = useState<string>();
   const [monitoring, setMonitoring] = useState(false);
   const [syncMessage, setSyncMessage] = useState("Load a game to choose batters and pitchers.");
+  const [baselineStartDate, setBaselineStartDate] = useState("");
+  const [baselineEndDate, setBaselineEndDate] = useState("");
+  const [noteRequest, setNoteRequest] = useState<ComparisonRequest | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const monitoringRef = useRef(false);
   const syncLiveMutation = useLiveSync();
@@ -83,6 +100,42 @@ export function PlayerWatchPageClient() {
     subject?.role === "batter" ? subject.id : undefined,
     subject?.role === "pitcher" ? subject.id : undefined,
   );
+
+  const comparisonRequest: ComparisonRequest | null =
+    subject?.role === "pitcher" && activeGameId && baselineStartDate && baselineEndDate
+      ? {
+          gameId: Number(activeGameId),
+          pitcherId: subject.id,
+          startDate: baselineStartDate,
+          endDate: baselineEndDate,
+        }
+      : null;
+  const comparisonQuery = usePregameLiveComparison(comparisonRequest);
+  const noteQuery = useComparisonNote(noteRequest);
+
+  const onGenerateNote = () => {
+    if (!comparisonRequest) return;
+    if (noteRequest && JSON.stringify(noteRequest) === JSON.stringify(comparisonRequest)) {
+      void noteQuery.refetch();
+      return;
+    }
+    setNoteRequest(comparisonRequest);
+  };
+
+  const pitcherComparison: PitcherComparisonProps | undefined =
+    subject?.role === "pitcher"
+      ? {
+          comparison: comparisonQuery.data ? toPregameLiveComparison(comparisonQuery.data) : null,
+          note: noteQuery.data ? toComparisonNote(noteQuery.data) : null,
+          noteLoading: noteQuery.isFetching,
+          noteError: noteQuery.error ? errorMessage(noteQuery.error) : null,
+          onGenerateNote,
+          startDate: baselineStartDate,
+          endDate: baselineEndDate,
+          onStartDateChange: setBaselineStartDate,
+          onEndDateChange: setBaselineEndDate,
+        }
+      : undefined;
 
   const runSync = async (
     gameId: number,
@@ -243,6 +296,6 @@ export function PlayerWatchPageClient() {
     {subjects.length > 1 ? (
       <label className="player-selector">Detail subject<select value={selectedSubject} onChange={(event) => setSelectedSubject(event.target.value)}>{subjects.map(([key, item]) => <option key={key} value={key}>{item.name} · {item.role}</option>)}</select></label>
     ) : null}
-    <PlayerWatch player={view} />
+    <PlayerWatch player={view} pitcherComparison={pitcherComparison} />
   </>;
 }

@@ -65,3 +65,26 @@ def pitch_usage_by_count(records: Sequence[PitchRecord]) -> list[PitchCountUsage
                 )
             )
     return sorted(usage, key=lambda row: (row.balls, row.strikes, -row.count, row.pitch_type))
+
+
+def avg_velocity_by_pitch_type(records: Sequence[PitchRecord]) -> dict[str, float | None]:
+    """Average `release_speed` for each pitch type.
+
+    A pitch type with every `release_speed` unmeasured maps to `None` (not
+    `0.0`) — an absence of velocity data must never read as the softest
+    pitch ever thrown. Velocity is averaged only over records that carry a
+    measurement; a type with a mix of measured and unmeasured pitches still
+    gets a real average from the ones that were tracked.
+    """
+    speeds_by_type: dict[str, list[float]] = defaultdict(list)
+    types_seen: set[str] = set()
+    for record in records:
+        types_seen.add(record.pitch_type)
+        if record.release_speed is not None:
+            speeds_by_type[record.pitch_type].append(record.release_speed)
+
+    def _average(pitch_type: str) -> float | None:
+        speeds = speeds_by_type.get(pitch_type)
+        return round(sum(speeds) / len(speeds), 1) if speeds else None
+
+    return {pitch_type: _average(pitch_type) for pitch_type in types_seen}

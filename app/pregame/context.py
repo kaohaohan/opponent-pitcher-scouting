@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 
-from .aggregation import pitch_usage_by_count, pitch_usage_by_type
+from .aggregation import avg_velocity_by_pitch_type, pitch_usage_by_count, pitch_usage_by_type
 from .sample_size import SampleStatus, evaluate
 from .schemas import PitchRecord, PregameContext
 
@@ -23,6 +23,9 @@ class PregameContextBuilder:
         records: Sequence[PitchRecord],
     ) -> PregameContext:
         by_type = pitch_usage_by_type(records)
+        velocities = avg_velocity_by_pitch_type(records)
+        for row in by_type:
+            row.avg_velocity = velocities.get(row.pitch_type)
         by_count = pitch_usage_by_count(records)
         total = len(records)
 

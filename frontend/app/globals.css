@@ -1323,6 +1323,28 @@ select:focus-visible {
   grid-column: 1 / -1;
 }
 
+.comparison-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  grid-column: 1 / -1;
+}
+
+.comparison-date-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.comparison-panel tr[data-notable="true"] td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.comparison-limitations {
+  margin: 0;
+  padding: 14px 20px;
+}
+
 .table-wrap {
   border-top: 1px solid var(--border);
   overflow-x: auto;

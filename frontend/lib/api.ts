@@ -205,3 +205,68 @@ export function generatePregameBrief(
     body: JSON.stringify(request),
   });
 }
+
+export interface PregameLiveComparisonRowDto {
+  pitch_type: string;
+  baseline_usage_pct: number | null;
+  baseline_velocity: number | null;
+  baseline_sample_size: number;
+  live_usage_pct: number | null;
+  live_velocity: number | null;
+  live_sample_size: number;
+  usage_delta_pp: number | null;
+  velocity_delta: number | null;
+  status: SampleStatusDto;
+  is_notable: boolean;
+}
+
+export interface PregameLiveComparisonDto {
+  game_id: string;
+  pitcher_id: number;
+  pitcher_name: string | null;
+  baseline_start_date: string;
+  baseline_end_date: string;
+  baseline_available: boolean;
+  baseline_total_pitches: number;
+  live_available: boolean;
+  live_total_pitches: number;
+  overall_live_status: SampleStatusDto;
+  rows: PregameLiveComparisonRowDto[];
+  limitations: string[];
+}
+
+export interface NotableChangeDto {
+  metric: string;
+  description: string;
+}
+
+export interface ComparisonNoteDto {
+  summary: string;
+  notable_changes: NotableChangeDto[];
+  sample_note: string;
+}
+
+export function getPregameLiveComparison(
+  gameId: number,
+  pitcherId: number,
+  startDate: string,
+  endDate: string,
+): Promise<PregameLiveComparisonDto> {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  return fetchJson<PregameLiveComparisonDto>(
+    `/api/live/games/${gameId}/pitchers/${pitcherId}/comparison?${params.toString()}`,
+  );
+}
+
+export function generateComparisonNote(
+  gameId: number,
+  pitcherId: number,
+  startDate: string,
+  endDate: string,
+): Promise<ComparisonNoteDto> {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  return fetchJson<ComparisonNoteDto>(
+    `/api/live/games/${gameId}/pitchers/${pitcherId}/comparison/note?${params.toString()}`,
+    { method: "POST" },
+  );
+}

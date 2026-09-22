@@ -3,11 +3,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
+  generateComparisonNote,
   generatePregameBrief,
   getAlerts,
   getEvents,
   getGameParticipants,
   getPlayers,
+  getPregameLiveComparison,
   syncLive,
   type LiveSyncRequest,
   type PregameBriefRequest,
@@ -78,6 +80,57 @@ export function usePregameBrief(request: PregameBriefRequest | null) {
       ? ["pregame-brief", request.pitcher_id, request.start_date, request.end_date]
       : ["pregame-brief", "idle"],
     queryFn: () => generatePregameBrief(request as PregameBriefRequest),
+    enabled: request !== null,
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export interface ComparisonRequest {
+  gameId: number;
+  pitcherId: number;
+  startDate: string;
+  endDate: string;
+}
+
+// Never calls Gemini — cheap to poll alongside the existing live
+// events/alerts queries while Pitcher Watch is open.
+export function usePregameLiveComparison(request: ComparisonRequest | null) {
+  return useQuery({
+    queryKey: request
+      ? ["pregame-live-comparison", request.gameId, request.pitcherId, request.startDate, request.endDate]
+      : ["pregame-live-comparison", "idle"],
+    queryFn: () =>
+      getPregameLiveComparison(
+        (request as ComparisonRequest).gameId,
+        (request as ComparisonRequest).pitcherId,
+        (request as ComparisonRequest).startDate,
+        (request as ComparisonRequest).endDate,
+      ),
+    enabled: request !== null,
+    staleTime: 10 * 1000,
+    refetchInterval: 15 * 1000,
+    refetchIntervalInBackground: false,
+    retry: 1,
+  });
+}
+
+// On-demand only, like `usePregameBrief` — a fresh AI note isn't needed
+// every 15s, and each generation is a real Gemini call.
+export function useComparisonNote(request: ComparisonRequest | null) {
+  return useQuery({
+    queryKey: request
+      ? ["comparison-note", request.gameId, request.pitcherId, request.startDate, request.endDate]
+      : ["comparison-note", "idle"],
+    queryFn: () =>
+      generateComparisonNote(
+        (request as ComparisonRequest).gameId,
+        (request as ComparisonRequest).pitcherId,
+        (request as ComparisonRequest).startDate,
+        (request as ComparisonRequest).endDate,
+      ),
     enabled: request !== null,
     staleTime: 30 * 60 * 1000,
     gcTime: 60 * 60 * 1000,

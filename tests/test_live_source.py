@@ -107,3 +107,10 @@ def test_live_source_discovers_participants_from_boxscore_and_observed_plays():
     assert by_id[657557].roles == ["batter"]
     assert by_id[542881].roles == ["pitcher"]
     assert by_id[701002].roles == ["batter", "pitcher"]
+
+
+def test_live_source_fetch_snapshot_returns_the_raw_feed_payload():
+    payload = _source().fetch_snapshot()
+
+    assert payload["gameData"]["teams"]["away"]["name"] == "Chicago White Sox"
+    assert isinstance(payload["liveData"]["plays"]["allPlays"], list)

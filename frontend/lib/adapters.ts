@@ -1,10 +1,12 @@
 import type {
   AlertDto,
+  ComparisonNoteDto,
   GameParticipantDto,
   PlateAppearanceDto,
   PlayerDto,
   PregameBriefResponseDto,
   PregameContextDto,
+  PregameLiveComparisonDto,
   PitchCountUsageDto,
   PitchTypeUsageDto,
 } from "@/lib/api";
@@ -12,11 +14,14 @@ import type {
   AlertData,
   AlertsSummaryData,
   BriefSectionData,
+  ComparisonNoteData,
   CountBucketData,
   PitcherProfileData,
+  PitchComparisonRowData,
   PitchUsageData,
   PlayerWatchData,
   PlateAppearanceData,
+  PregameLiveComparisonData,
 } from "@/lib/types";
 
 const pitchNames: Record<string, string> = {
@@ -372,5 +377,53 @@ export function toAlertsSummary(
         alert.rule_type === "pitcher_high_exit_velocity_allowed",
     ).length,
     trackedPlayers: players.length,
+  };
+}
+
+function toComparisonRow(row: PregameLiveComparisonDto["rows"][number]): PitchComparisonRowData {
+  return {
+    pitchType: row.pitch_type,
+    pitchName: pitchName(row.pitch_type),
+    tone: pitchTone(row.pitch_type),
+    baselineUsagePct: row.baseline_usage_pct,
+    baselineVelocity: row.baseline_velocity,
+    baselineSampleSize: row.baseline_sample_size,
+    liveUsagePct: row.live_usage_pct,
+    liveVelocity: row.live_velocity,
+    liveSampleSize: row.live_sample_size,
+    usageDeltaPp: row.usage_delta_pp,
+    velocityDelta: row.velocity_delta,
+    status: row.status,
+    isNotable: row.is_notable,
+  };
+}
+
+export function toPregameLiveComparison(
+  dto: PregameLiveComparisonDto,
+): PregameLiveComparisonData {
+  return {
+    gameId: dto.game_id,
+    pitcherId: dto.pitcher_id,
+    pitcherName: dto.pitcher_name,
+    baselineStartDate: dto.baseline_start_date,
+    baselineEndDate: dto.baseline_end_date,
+    baselineAvailable: dto.baseline_available,
+    baselineTotalPitches: dto.baseline_total_pitches,
+    liveAvailable: dto.live_available,
+    liveTotalPitches: dto.live_total_pitches,
+    overallLiveStatus: dto.overall_live_status,
+    rows: dto.rows.map(toComparisonRow),
+    limitations: dto.limitations,
+  };
+}
+
+export function toComparisonNote(dto: ComparisonNoteDto): ComparisonNoteData {
+  return {
+    summary: dto.summary,
+    notableChanges: dto.notable_changes.map((change) => ({
+      metric: change.metric,
+      description: change.description,
+    })),
+    sampleNote: dto.sample_note,
   };
 }

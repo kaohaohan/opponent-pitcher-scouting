@@ -74,6 +74,18 @@ class LiveSource(PlateAppearanceSource):
         self._set_game_status(payload)
         return self._discover_participants(payload)
 
+    def fetch_snapshot(self) -> dict[str, Any]:
+        """Fetch and return the raw MLB feed payload for this game.
+
+        For callers that need pitch-level detail the normalized event
+        stream discards (`app.comparison.live_metrics` is the current
+        one) — everything else about this source stays one-shot and
+        stateless, so a fresh snapshot is fetched on every call.
+        """
+        payload = self._fetch()
+        self._set_game_status(payload)
+        return payload
+
     def _fetch(self) -> dict[str, Any]:
         url = f"https://statsapi.mlb.com/api/v1.1/game/{self.game_id}/feed/live"
         client = self._client or httpx.Client(timeout=self.timeout)
