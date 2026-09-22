@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { useLiveMonitoring } from "@/lib/live-monitoring-provider";
 import type { NavSection } from "@/lib/types";
 import { useAlerts } from "@/lib/queries";
 
@@ -13,6 +14,8 @@ const navigation: Array<{ id: NavSection; label: string; href: string }> = [
 
 export function TopNav({ active }: { active: NavSection }) {
   const alertsQuery = useAlerts();
+  const monitoring = useLiveMonitoring();
+  const watchedCount = monitoring.selectedBatterIds.length + monitoring.selectedPitcherIds.length;
 
   return (
     <header className="topbar">
@@ -43,9 +46,33 @@ export function TopNav({ active }: { active: NavSection }) {
           ))}
         </nav>
 
-        <div className="system-status" title="FastAPI data mode">
-          <span className="system-status__dot" aria-hidden="true" />
-          API workspace
+        <div className="topbar__status-group">
+          {monitoring.gameId !== null ? (
+            <div
+              className={monitoring.isMonitoring ? "monitoring-status is-active" : "monitoring-status"}
+              title={
+                monitoring.lastSyncError
+                  ? `Live sync error: ${monitoring.lastSyncError}`
+                  : `Game ${monitoring.gameId} · ${watchedCount} watched player${watchedCount === 1 ? "" : "s"}`
+              }
+            >
+              <span className="monitoring-status__dot" aria-hidden="true" />
+              {monitoring.isMonitoring ? "Monitoring" : "Stopped"}
+              <span className="monitoring-status__meta">
+                Game {monitoring.gameId} · {watchedCount} watched
+              </span>
+              {monitoring.lastSyncError ? (
+                <span className="monitoring-status__error" aria-hidden="true">
+                  !
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="system-status" title="FastAPI data mode">
+            <span className="system-status__dot" aria-hidden="true" />
+            API workspace
+          </div>
         </div>
       </div>
     </header>

@@ -195,13 +195,69 @@ select:focus-visible {
   padding: 0 5px;
 }
 
+.topbar__status-group {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-self: end;
+}
+
 .system-status {
   align-items: center;
   color: var(--text-dim);
   display: flex;
   font-size: 0.76rem;
   gap: 8px;
-  justify-self: end;
+}
+
+.monitoring-status {
+  align-items: center;
+  color: var(--text-dim);
+  display: flex;
+  font-size: 0.76rem;
+  gap: 6px;
+  position: relative;
+}
+
+.monitoring-status.is-active {
+  color: var(--text);
+}
+
+.monitoring-status__dot {
+  background: var(--text-dim);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(100, 113, 125, 0.1);
+  height: 7px;
+  width: 7px;
+}
+
+.monitoring-status.is-active .monitoring-status__dot {
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(82, 197, 138, 0.16);
+}
+
+.monitoring-status__meta {
+  color: var(--text-dim);
+  display: none;
+}
+
+.monitoring-status__error {
+  align-items: center;
+  background: var(--red-soft);
+  border-radius: 50%;
+  color: #ffb2a9;
+  display: inline-flex;
+  font-size: 0.66rem;
+  font-weight: 700;
+  height: 16px;
+  justify-content: center;
+  width: 16px;
+}
+
+@media (min-width: 960px) {
+  .monitoring-status__meta {
+    display: inline;
+  }
 }
 
 .system-status__dot {
@@ -1566,7 +1622,7 @@ select:focus-visible {
     padding: 0 9px;
   }
 
-  .system-status {
+  .topbar__status-group {
     grid-column: 2;
     grid-row: 1;
   }

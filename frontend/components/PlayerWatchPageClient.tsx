@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 
 import { DataState } from "@/components/DataState";
 import { PlayerWatch, type PitcherComparisonProps } from "@/components/PlayerWatch";
@@ -13,12 +12,12 @@ import {
   type WatchSubject,
 } from "@/lib/adapters";
 import type { GameParticipantDto } from "@/lib/api";
+import { useLiveMonitoring } from "@/lib/live-monitoring-provider";
 import {
   useAlerts,
   useComparisonNote,
   useEvents,
   useGameParticipants,
-  useLiveSync,
   usePregameLiveComparison,
   type ComparisonRequest,
 } from "@/lib/queries";
@@ -27,10 +26,6 @@ type WatchRole = "batter" | "pitcher";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Player data could not be loaded.";
-}
-
-function unique(values: number[]): number[] {
-  return [...new Set(values)];
 }
 
 function subjectKey(role: WatchRole, id: number): string {
@@ -52,24 +47,27 @@ function groupByTeam(participants: GameParticipantDto[], role: WatchRole) {
 }
 
 export function PlayerWatchPageClient() {
-  const queryClient = useQueryClient();
-  const [gameIdInput, setGameIdInput] = useState("");
-  const [loadedGameId, setLoadedGameId] = useState<number | null>(null);
-  const [activeGameId, setActiveGameId] = useState<string>();
+  const monitoring = useLiveMonitoring();
+  const [gameIdInput, setGameIdInput] = useState(monitoring.gameId ? String(monitoring.gameId) : "");
+  const [gameIdError, setGameIdError] = useState<string | null>(null);
+
+  // The provider restores a persisted game id from localStorage after mount
+  // (to avoid an SSR hydration mismatch), so pick it up here once it arrives.
+  useEffect(() => {
+    if (monitoring.gameId !== null) {
+      setGameIdInput((current) => (current ? current : String(monitoring.gameId)));
+    }
+  }, [monitoring.gameId]);
   const [activeRole, setActiveRole] = useState<WatchRole>("batter");
-  const [selectedBatterIds, setSelectedBatterIds] = useState<number[]>([]);
-  const [selectedPitcherIds, setSelectedPitcherIds] = useState<number[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>();
-  const [monitoring, setMonitoring] = useState(false);
-  const [syncMessage, setSyncMessage] = useState("Load a game to choose batters and pitchers.");
   const [baselineStartDate, setBaselineStartDate] = useState("");
   const [baselineEndDate, setBaselineEndDate] = useState("");
   const [noteRequest, setNoteRequest] = useState<ComparisonRequest | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const monitoringRef = useRef(false);
-  const syncLiveMutation = useLiveSync();
-  const participantsQuery = useGameParticipants(loadedGameId);
+  const participantsQuery = useGameParticipants(monitoring.gameId);
   const alertsQuery = useAlerts();
+
+  const { selectedBatterIds, selectedPitcherIds } = monitoring;
+  const activeGameId = monitoring.syncedGameId ?? undefined;
 
   const participants = participantsQuery.data?.participants ?? [];
   const subjects = useMemo(() => {
@@ -137,84 +135,20 @@ export function PlayerWatchPageClient() {
         }
       : undefined;
 
-  const runSync = async (
-    gameId: number,
-    batterIds: number[],
-    pitcherIds: number[],
-    keepMonitoring: boolean,
-  ) => {
-    try {
-      const report = await syncLiveMutation.mutateAsync({
-        game_id: gameId,
-        batter_ids: batterIds,
-        pitcher_ids: pitcherIds,
-      });
-      setActiveGameId(report.game_id);
-      setSyncMessage(`${report.game_status ?? report.game_state ?? "Snapshot"}: ${report.stored} new, ${report.duplicates} duplicate${report.duplicates === 1 ? "" : "s"}.`);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["players"] }),
-        queryClient.invalidateQueries({ queryKey: ["events"] }),
-        queryClient.invalidateQueries({ queryKey: ["alerts"] }),
-      ]);
-      if (keepMonitoring && monitoringRef.current && report.game_state !== "Final") {
-        timerRef.current = setTimeout(() => void runSync(gameId, batterIds, pitcherIds, true), 20_000);
-      } else if (report.game_state === "Final") {
-        monitoringRef.current = false;
-        setMonitoring(false);
-        setSyncMessage("Final game snapshot synced; monitoring stopped.");
-      }
-    } catch (error) {
-      setSyncMessage(errorMessage(error));
-      if (keepMonitoring && monitoringRef.current) {
-        timerRef.current = setTimeout(() => void runSync(gameId, batterIds, pitcherIds, true), 20_000);
-      }
-    }
-  };
-
-  useEffect(() => () => {
-    monitoringRef.current = false;
-    if (timerRef.current) clearTimeout(timerRef.current);
-  }, []);
-
   const loadGame = () => {
     const gameId = Number(gameIdInput.trim());
     if (!Number.isInteger(gameId) || gameId <= 0) {
-      setSyncMessage("Use a positive MLB game ID.");
+      setGameIdError("Use a positive MLB game ID.");
       return;
     }
-    setLoadedGameId(gameId);
-    setActiveGameId(undefined);
-    setSelectedBatterIds([]);
-    setSelectedPitcherIds([]);
+    setGameIdError(null);
+    monitoring.loadGame(gameId);
     setSelectedSubject(undefined);
-    setSyncMessage("Loading game participants...");
   };
 
   const toggleSelection = (role: WatchRole, id: number) => {
-    const update = (values: number[]) =>
-      values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
-    if (role === "batter") setSelectedBatterIds(update);
-    else setSelectedPitcherIds(update);
-  };
-
-  const toggleMonitoring = () => {
-    if (monitoring) {
-      monitoringRef.current = false;
-      if (timerRef.current) clearTimeout(timerRef.current);
-      setMonitoring(false);
-      setSyncMessage("Monitoring stopped.");
-      return;
-    }
-    if (loadedGameId === null || selectedBatterIds.length + selectedPitcherIds.length === 0) {
-      setSyncMessage("Choose at least one batter or pitcher before monitoring.");
-      return;
-    }
-    const batterIds = unique(selectedBatterIds);
-    const pitcherIds = unique(selectedPitcherIds);
-    monitoringRef.current = true;
-    setMonitoring(true);
-    setSyncMessage("Syncing MLB snapshot...");
-    void runSync(loadedGameId, batterIds, pitcherIds, true);
+    if (role === "batter") monitoring.toggleBatter(id);
+    else monitoring.togglePitcher(id);
   };
 
   const discoveryStatus = participantsQuery.isLoading ? (
@@ -223,7 +157,7 @@ export function PlayerWatchPageClient() {
     <DataState kind="error" onRetry={() => void participantsQuery.refetch()}>
       {errorMessage(participantsQuery.error)}
     </DataState>
-  ) : loadedGameId !== null && participants.length === 0 ? (
+  ) : monitoring.gameId !== null && participants.length === 0 ? (
     <DataState>No announced or observed participants are available yet.</DataState>
   ) : null;
 
@@ -231,12 +165,12 @@ export function PlayerWatchPageClient() {
     <section className="panel live-controls" aria-labelledby="live-controls-title">
       <div className="panel-heading">
         <div><p className="section-kicker">MLB live feed</p><h2 id="live-controls-title">Monitor a game</h2></div>
-        <span className={monitoring ? "live-control-status is-active" : "live-control-status"}>{monitoring ? "Monitoring" : "Stopped"}</span>
+        <span className={monitoring.isMonitoring ? "live-control-status is-active" : "live-control-status"}>{monitoring.isMonitoring ? "Monitoring" : "Stopped"}</span>
       </div>
       <div className="live-controls__grid">
-        <label className="field-label">Game ID<input value={gameIdInput} onChange={(event) => setGameIdInput(event.target.value)} placeholder="776743" inputMode="numeric" disabled={monitoring} /></label>
-        <button className="secondary-button" type="button" onClick={loadGame} disabled={monitoring || participantsQuery.isFetching}>Load game</button>
-        <button className="primary-button" type="button" onClick={toggleMonitoring}>{monitoring ? "Stop monitoring" : "Start monitoring"}</button>
+        <label className="field-label">Game ID<input value={gameIdInput} onChange={(event) => setGameIdInput(event.target.value)} placeholder="776743" inputMode="numeric" disabled={monitoring.isMonitoring} /></label>
+        <button className="secondary-button" type="button" onClick={loadGame} disabled={monitoring.isMonitoring || participantsQuery.isFetching}>Load game</button>
+        <button className="primary-button" type="button" onClick={monitoring.isMonitoring ? monitoring.stopMonitoring : monitoring.startMonitoring}>{monitoring.isMonitoring ? "Stop monitoring" : "Start monitoring"}</button>
       </div>
       {participantsQuery.data ? (
         <div className="game-discovery-summary">
@@ -264,7 +198,7 @@ export function PlayerWatchPageClient() {
                     : selectedPitcherIds.includes(participant.player_id);
                   return (
                     <label className="participant-option" key={`${activeRole}-${participant.player_id}`}>
-                      <input type="checkbox" checked={checked} disabled={monitoring} onChange={() => toggleSelection(activeRole, participant.player_id)} />
+                      <input type="checkbox" checked={checked} disabled={monitoring.isMonitoring} onChange={() => toggleSelection(activeRole, participant.player_id)} />
                       <span>{participant.name}</span>
                     </label>
                   );
@@ -274,7 +208,10 @@ export function PlayerWatchPageClient() {
           ))}
         </div>
       ) : null}
-      <p className="control-status">{syncMessage} Updates run about every 20 seconds while this page is open.</p>
+      {gameIdError ? <p className="control-status is-error">{gameIdError}</p> : null}
+      <p className="control-status">
+        {monitoring.syncMessage} Updates run about every 20 seconds while monitoring is active, even while you browse Alerts or Pregame.
+      </p>
     </section>
   );
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { LiveMonitoringProvider } from "@/lib/live-monitoring-provider";
 import { QueryProvider } from "@/lib/query-provider";
 
 import "./globals.css";
@@ -17,7 +18,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="en">
       <body>
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <LiveMonitoringProvider>{children}</LiveMonitoringProvider>
+        </QueryProvider>
       </body>
     </html>
   );
