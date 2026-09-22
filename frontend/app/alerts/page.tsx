@@ -11,9 +11,9 @@ export default function AlertsPage() {
   return (
     <AppShell
       active="alerts"
-      eyebrow="Monitoring / Rule outcomes"
+      eyebrow="Opponent scouting / Pitcher alerts"
       title="Alerts"
-      description="Recent events that matched active player-watch rules."
+      description="Real-time alerts for how the opposing pitcher is performing against hitters."
       meta={
         <>
           <span className="data-window-label">Last updated</span>

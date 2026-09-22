@@ -26,7 +26,7 @@ export function TopNav({ active }: { active: NavSection }) {
           </span>
           <span className="brand__copy">
             <span className="brand__name">Baseball Intelligence</span>
-            <span className="brand__descriptor">Game preparation console</span>
+            <span className="brand__descriptor">Opponent pitcher scouting console</span>
           </span>
         </Link>
 

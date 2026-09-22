@@ -144,6 +144,7 @@ export function PlayerWatch({
 
       {isPitcher && pitcherComparison ? (
         <div className="comparison-section">
+          <p className="section-kicker">Pre-game expectation vs. live game behavior</p>
           <form
             className="comparison-date-form"
             onSubmit={(event) => event.preventDefault()}

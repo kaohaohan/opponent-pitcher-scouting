@@ -1,6 +1,8 @@
 "use client";
 
-import { AlertsPanel } from "@/components/AlertsPanel";
+import { useState } from "react";
+
+import { AlertsPanel, type RoleFilter } from "@/components/AlertsPanel";
 import { DataState } from "@/components/DataState";
 import { toAlertData, toAlertsSummary } from "@/lib/adapters";
 import { useAlerts, useEvents, usePlayers } from "@/lib/queries";
@@ -13,6 +15,9 @@ export function AlertsPageClient() {
   const alertsQuery = useAlerts();
   const playersQuery = usePlayers();
   const eventsQuery = useEvents(undefined, 1000);
+  // Pitcher-role alerts are the primary opponent-scouting signal; batter
+  // alerts and the full stream remain one click away rather than deleted.
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("pitcher");
 
   if (alertsQuery.isLoading || playersQuery.isLoading || eventsQuery.isLoading) {
     return <DataState kind="loading">Loading alert stream…</DataState>;
@@ -30,9 +35,18 @@ export function AlertsPageClient() {
 
   const players = playersQuery.data ?? [];
   const alerts = alertsQuery.data ?? [];
+  const filteredAlerts =
+    roleFilter === "all" ? alerts : alerts.filter((alert) => alert.subject_role === roleFilter);
   const eventsById = new Map((eventsQuery.data ?? []).map((event) => [event.id, event]));
   const playersById = new Map(players.map((player) => [player.id, player]));
-  const view = alerts.map((alert) => toAlertData(alert, playersById, eventsById));
+  const view = filteredAlerts.map((alert) => toAlertData(alert, playersById, eventsById));
 
-  return <AlertsPanel alerts={view} summary={toAlertsSummary(alerts, players)} />;
+  return (
+    <AlertsPanel
+      alerts={view}
+      summary={toAlertsSummary(filteredAlerts, players)}
+      roleFilter={roleFilter}
+      onRoleFilterChange={setRoleFilter}
+    />
+  );
 }

@@ -206,6 +206,18 @@ export function generatePregameBrief(
   });
 }
 
+export interface PitcherSearchResultDto {
+  id: number;
+  name: string;
+  team: string | null;
+  throws: string | null;
+}
+
+export function searchPitchers(query: string): Promise<PitcherSearchResultDto[]> {
+  const params = new URLSearchParams({ query });
+  return fetchJson<PitcherSearchResultDto[]>(`/api/pregame/pitchers/search?${params.toString()}`);
+}
+
 export interface PregameLiveComparisonRowDto {
   pitch_type: string;
   baseline_usage_pct: number | null;

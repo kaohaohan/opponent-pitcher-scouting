@@ -19,8 +19,17 @@ interface PregameDashboardProps {
   isLoading?: boolean;
   statusMessage?: string;
   error?: string;
+  initialPitcherId?: number;
+  initialPitcherName?: string;
+  initialPitcherTeam?: string | null;
   onRetry?: () => void;
-  onGenerate?: (request: { pitcherId: number; startDate: string; endDate: string }) => void;
+  onGenerate?: (request: {
+    pitcherId: number;
+    startDate: string;
+    endDate: string;
+    pitcherName?: string;
+    pitcherTeam?: string | null;
+  }) => void;
 }
 
 export function PregameDashboard({
@@ -31,6 +40,9 @@ export function PregameDashboard({
   isLoading = false,
   statusMessage,
   error,
+  initialPitcherId,
+  initialPitcherName,
+  initialPitcherTeam,
   onRetry,
   onGenerate,
 }: PregameDashboardProps) {
@@ -84,6 +96,9 @@ export function PregameDashboard({
 
         <div className="panel-divider" />
         <PregameControls
+          initialPitcherId={initialPitcherId}
+          initialPitcherName={initialPitcherName}
+          initialPitcherTeam={initialPitcherTeam}
           isGenerating={isLoading}
           onGenerate={onGenerate}
           pitcher={pitcher}

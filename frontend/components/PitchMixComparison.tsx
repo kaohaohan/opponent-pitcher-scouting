@@ -31,7 +31,7 @@ export function PitchMixComparison({
       <div className="panel-heading">
         <div>
           <p className="section-kicker">Backend-generated facts</p>
-          <h2 id="comparison-title">Live vs. Pregame Pitch Mix</h2>
+          <h2 id="comparison-title">Pre-Game Expectation vs. Live Game Behavior</h2>
         </div>
         {comparison ? (
           <span className="panel-heading__meta">
@@ -54,10 +54,10 @@ export function PitchMixComparison({
               <thead>
                 <tr>
                   <th>Pitch</th>
-                  <th>Pregame</th>
+                  <th>Pre-Game</th>
                   <th>Live</th>
                   <th>Usage Δ</th>
-                  <th>Pregame velo</th>
+                  <th>Pre-Game velo</th>
                   <th>Live velo</th>
                   <th>Velo Δ</th>
                   <th>Sample</th>

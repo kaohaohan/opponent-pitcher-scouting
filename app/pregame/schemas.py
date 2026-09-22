@@ -103,3 +103,14 @@ class PregameBriefRequest(BaseModel):
 class PregameBriefResponse(BaseModel):
     context: PregameContext
     brief: str
+
+
+class PitcherSearchResult(BaseModel):
+    """One MLB pitcher matched by name search, for the Pregame picker."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    name: str
+    team: str | None = None
+    throws: str | None = None

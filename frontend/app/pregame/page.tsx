@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { PregamePageClient } from "@/components/PregamePageClient";
 
 export const metadata: Metadata = {
-  title: "Pregame",
+  title: "Opponent Pitcher Scouting",
 };
 
 export default function PregamePage() {
   return (
     <AppShell
       active="pregame"
-      eyebrow="Game preparation / Pitcher intelligence"
-      title="Pregame"
-      description="Review pitch usage, count-specific patterns, and evidence-aware briefing notes."
+      eyebrow="Opponent scouting / Pitcher intelligence"
+      title="Opponent Pitcher Scouting"
+      description="Review an opposing pitcher's arsenal, velocity, count tendencies, and scouting notes before the game."
     >
-      <PregamePageClient />
+      <Suspense fallback={null}>
+        <PregamePageClient />
+      </Suspense>
     </AppShell>
   );
 }

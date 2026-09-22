@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { DataState } from "@/components/DataState";
@@ -58,7 +59,9 @@ export function PlayerWatchPageClient() {
       setGameIdInput((current) => (current ? current : String(monitoring.gameId)));
     }
   }, [monitoring.gameId]);
-  const [activeRole, setActiveRole] = useState<WatchRole>("batter");
+  // Pitcher is the primary demo workflow (opponent-pitcher scouting); batter
+  // selection remains available but is no longer the default tab.
+  const [activeRole, setActiveRole] = useState<WatchRole>("pitcher");
   const [selectedSubject, setSelectedSubject] = useState<string>();
   const [baselineStartDate, setBaselineStartDate] = useState("");
   const [baselineEndDate, setBaselineEndDate] = useState("");
@@ -71,13 +74,17 @@ export function PlayerWatchPageClient() {
 
   const participants = participantsQuery.data?.participants ?? [];
   const subjects = useMemo(() => {
+    // Pitchers are listed first so the default detail subject (subjects[0])
+    // favors the opponent-pitcher scouting workflow when one is watched.
     const byKey = new Map<string, WatchSubject>();
+    for (const participant of participants) {
+      if (selectedPitcherIds.includes(participant.player_id) && participant.roles.includes("pitcher")) {
+        byKey.set(subjectKey("pitcher", participant.player_id), subjectFromParticipant(participant, "pitcher"));
+      }
+    }
     for (const participant of participants) {
       if (selectedBatterIds.includes(participant.player_id) && participant.roles.includes("batter")) {
         byKey.set(subjectKey("batter", participant.player_id), subjectFromParticipant(participant, "batter"));
-      }
-      if (selectedPitcherIds.includes(participant.player_id) && participant.roles.includes("pitcher")) {
-        byKey.set(subjectKey("pitcher", participant.player_id), subjectFromParticipant(participant, "pitcher"));
       }
     }
     return [...byKey.entries()];
@@ -179,9 +186,9 @@ export function PlayerWatchPageClient() {
         </div>
       ) : null}
       <div className="role-tabs" role="tablist" aria-label="Watch role">
-        {(["batter", "pitcher"] as const).map((role) => (
+        {(["pitcher", "batter"] as const).map((role) => (
           <button key={role} type="button" className={activeRole === role ? "is-active" : ""} onClick={() => setActiveRole(role)}>
-            {role === "batter" ? "Batters" : "Pitchers"}
+            {role === "pitcher" ? "Pitchers" : "Batters"}
           </button>
         ))}
       </div>
@@ -216,7 +223,7 @@ export function PlayerWatchPageClient() {
   );
 
   if (alertsQuery.isLoading || eventsQuery.isLoading) {
-    return <>{controls}<DataState kind="loading">Loading recorded player data...</DataState></>;
+    return <>{controls}<DataState kind="loading">Loading live pitcher data...</DataState></>;
   }
   const error = alertsQuery.error ?? eventsQuery.error;
   const hasCachedData = Boolean(alertsQuery.data || eventsQuery.data);
@@ -225,14 +232,47 @@ export function PlayerWatchPageClient() {
   }
   if (!subject) return <>{controls}<DataState>Choose a batter or pitcher to monitor.</DataState></>;
 
+  const pregameHandoffHref =
+    subject.role === "pitcher"
+      ? `/pregame?pitcherId=${subject.id}&pitcherName=${encodeURIComponent(subject.name)}${
+          subject.team ? `&pitcherTeam=${encodeURIComponent(subject.team)}` : ""
+        }`
+      : null;
+  const pregameHandoffLink = pregameHandoffHref ? (
+    <Link className="secondary-button" href={pregameHandoffHref}>
+      Use {subject.name} in Pregame
+    </Link>
+  ) : null;
+  const subjectSelector =
+    subjects.length > 1 ? (
+      <label className="player-selector">
+        Detail subject
+        <select value={selectedSubject} onChange={(event) => setSelectedSubject(event.target.value)}>
+          {subjects.map(([key, item]) => (
+            <option key={key} value={key}>
+              {item.name} · {item.role}
+            </option>
+          ))}
+        </select>
+      </label>
+    ) : null;
+
   const view = toPlayerWatchData(subject, eventsQuery.data ?? [], alertsQuery.data ?? [], subject.role);
-  if (!view) return <>{controls}<DataState>No completed plate appearances are available for this selection.</DataState></>;
+  if (!view) {
+    return (
+      <>
+        {controls}
+        {subjectSelector}
+        {pregameHandoffLink}
+        <DataState>No completed plate appearances are available for this selection.</DataState>
+      </>
+    );
+  }
 
   return <>
     {controls}
-    {subjects.length > 1 ? (
-      <label className="player-selector">Detail subject<select value={selectedSubject} onChange={(event) => setSelectedSubject(event.target.value)}>{subjects.map(([key, item]) => <option key={key} value={key}>{item.name} · {item.role}</option>)}</select></label>
-    ) : null}
+    {subjectSelector}
+    {pregameHandoffLink}
     <PlayerWatch player={view} pitcherComparison={pitcherComparison} />
   </>;
 }

@@ -10,6 +10,7 @@ import {
   getGameParticipants,
   getPlayers,
   getPregameLiveComparison,
+  searchPitchers,
   syncLive,
   type LiveSyncRequest,
   type PregameBriefRequest,
@@ -71,6 +72,19 @@ export function useAlerts(limit = 200) {
     refetchInterval: 15 * 1000,
     refetchIntervalInBackground: false,
     retry: 1,
+  });
+}
+
+// Only fires once the user has typed enough to narrow MLB's people search;
+// the query key includes the search term so React Query caches per-term.
+export function usePitcherSearch(query: string) {
+  const trimmed = query.trim();
+  return useQuery({
+    queryKey: ["pitcher-search", trimmed],
+    queryFn: () => searchPitchers(trimmed),
+    enabled: trimmed.length >= 2,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 }
 

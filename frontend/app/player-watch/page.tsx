@@ -4,20 +4,20 @@ import { AppShell } from "@/components/AppShell";
 import { PlayerWatchPageClient } from "@/components/PlayerWatchPageClient";
 
 export const metadata: Metadata = {
-  title: "Player Watch",
+  title: "Live Pitcher Watch",
 };
 
 export default function PlayerWatchPage() {
   return (
     <AppShell
       active="player-watch"
-      eyebrow="Live monitoring / Taiwanese hitters"
-      title="Player Watch"
-      description="Follow the latest completed plate appearances and watch-rule outcomes."
+      eyebrow="Live pitcher monitoring"
+      title="Live Pitcher Watch"
+      description="Monitor how the opposing pitcher is attacking hitters and compare live behavior with the pregame scouting baseline."
       meta={
         <>
           <span className="data-window-label">Source</span>
-          <strong>Recorded API data</strong>
+          <strong>MLB live data</strong>
         </>
       }
     >

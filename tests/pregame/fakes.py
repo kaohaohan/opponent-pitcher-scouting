@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import date
 
 from app.pregame.llm.base import LLMProvider
-from app.pregame.schemas import PitchRecord, PregameContext
+from app.pregame.schemas import PitcherSearchResult, PitchRecord, PregameContext
 from app.pregame.sources.base import PitchDataSource
 
 
@@ -39,3 +39,17 @@ class FakeLLMProvider(LLMProvider):
     def generate_brief(self, context: PregameContext) -> str:
         self.received_contexts.append(context)
         return self.brief
+
+
+class FakePitcherSearchSource:
+    """Returns canned pitcher matches instead of calling MLB's people search."""
+
+    name = "fake"
+
+    def __init__(self, results: list[PitcherSearchResult] | None = None) -> None:
+        self.results = results or []
+        self.received_queries: list[str] = []
+
+    def search(self, query: str) -> list[PitcherSearchResult]:
+        self.received_queries.append(query)
+        return self.results

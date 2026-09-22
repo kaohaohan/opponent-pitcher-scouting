@@ -6,13 +6,14 @@ Phase 1. One request means one fetch, one aggregation pass, one LLM call.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from .context import PregameContextBuilder
 from .llm.base import LLMProvider
 from .llm.gemini import GeminiConfigurationError, GeminiProvider, GeminiRequestError
-from .schemas import PregameBriefRequest, PregameBriefResponse
+from .schemas import PitcherSearchResult, PregameBriefRequest, PregameBriefResponse
 from .sources.base import PitchDataSource
+from .sources.player_search import MLBPitcherSearchSource, PitcherSearchError
 from .sources.statcast import StatcastFetchError, StatcastPitchSource
 
 router = APIRouter(prefix="/api/pregame", tags=["pregame"])
@@ -24,6 +25,24 @@ def get_pitch_source() -> PitchDataSource:
 
 def get_llm_provider() -> LLMProvider:
     return GeminiProvider()
+
+
+def get_pitcher_search_source() -> MLBPitcherSearchSource:
+    return MLBPitcherSearchSource()
+
+
+@router.get("/pitchers/search", response_model=list[PitcherSearchResult])
+def search_pitchers(
+    query: str = Query(min_length=2),
+    source: MLBPitcherSearchSource = Depends(get_pitcher_search_source),
+) -> list[PitcherSearchResult]:
+    """Look up MLB pitchers by name for the Pregame picker."""
+    try:
+        return source.search(query)
+    except PitcherSearchError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
 
 
 @router.post("/brief", response_model=PregameBriefResponse)
