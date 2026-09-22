@@ -3,16 +3,56 @@
   "gameData": {
     "status": {"abstractGameState": "Live", "detailedState": "In Progress"},
     "teams": {
-      "away": {"name": "Chicago White Sox"},
-      "home": {"name": "Los Angeles Angels"}
+      "away": {"id": 145, "name": "Chicago White Sox"},
+      "home": {"id": 108, "name": "Los Angeles Angels"}
     }
   },
   "liveData": {
+    "boxscore": {
+      "teams": {
+        "away": {
+          "players": {
+            "ID657557": {
+              "person": {"id": 657557, "fullName": "Paul DeJong"},
+              "position": {"code": "6", "type": "Infielder"},
+              "battingOrder": "200",
+              "stats": {"batting": {"atBats": 2}}
+            },
+            "ID123456": {
+              "person": {"id": 123456, "fullName": "Unrelated Batter"},
+              "position": {"code": "9", "type": "Outfielder"},
+              "battingOrder": "300",
+              "stats": {"batting": {"atBats": 1}}
+            },
+            "ID701002": {
+              "person": {"id": 701002, "fullName": "Two-Way Reserve"},
+              "position": {"code": "1", "type": "Pitcher"},
+              "battingOrder": "900",
+              "stats": {"batting": {"atBats": 0}, "pitching": {"inningsPitched": "0.1"}}
+            }
+          }
+        },
+        "home": {
+          "players": {
+            "ID542881": {
+              "person": {"id": 542881, "fullName": "Tyler Anderson"},
+              "position": {"code": "1", "type": "Pitcher"},
+              "stats": {"pitching": {"inningsPitched": "3.0"}}
+            },
+            "ID808080": {
+              "person": {"id": 808080, "fullName": "Late Reliever"},
+              "position": {"code": "1", "type": "Pitcher"},
+              "stats": {"pitching": {"inningsPitched": "0.0"}}
+            }
+          }
+        }
+      }
+    },
     "plays": {
       "allPlays": [
         {
           "about": {"atBatIndex": 4, "inning": 2, "isTopInning": true, "isComplete": true},
-          "matchup": {"batter": {"id": 657557, "fullName": "Paul DeJong"}, "pitcher": {"fullName": "Tyler Anderson"}},
+          "matchup": {"batter": {"id": 657557, "fullName": "Paul DeJong"}, "pitcher": {"id": 542881, "fullName": "Tyler Anderson"}},
           "result": {"event": "Home Run"},
           "playEvents": [
             {"isPitch": false, "details": {"description": "mound visit"}},
@@ -22,19 +62,19 @@
         },
         {
           "about": {"atBatIndex": 5, "inning": 2, "isTopInning": true, "isComplete": false},
-          "matchup": {"batter": {"id": 657557, "fullName": "Paul DeJong"}, "pitcher": {"fullName": "Tyler Anderson"}},
+          "matchup": {"batter": {"id": 657557, "fullName": "Paul DeJong"}, "pitcher": {"id": 542881, "fullName": "Tyler Anderson"}},
           "result": {"event": ""},
           "playEvents": []
         },
         {
           "about": {"atBatIndex": 6, "inning": 2, "isTopInning": false, "isComplete": true},
-          "matchup": {"batter": {"id": 123456, "fullName": "Unrelated Batter"}, "pitcher": {"fullName": "Tyler Anderson"}},
+          "matchup": {"batter": {"id": 123456, "fullName": "Unrelated Batter"}, "pitcher": {"id": 701002, "fullName": "Two-Way Reserve"}},
           "result": {"event": "Single"},
           "playEvents": []
         },
         {
           "about": {"atBatIndex": 7, "inning": 3, "isTopInning": false, "isComplete": true},
-          "matchup": {"batter": {"id": 657557, "fullName": "Paul DeJong"}, "pitcher": {"fullName": "Tyler Anderson"}},
+          "matchup": {"batter": {"id": 657557, "fullName": "Paul DeJong"}, "pitcher": {"id": 701002, "fullName": "Two-Way Reserve"}},
           "result": {"event": "Flyout"},
           "playEvents": []
         },

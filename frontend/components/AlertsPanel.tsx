@@ -5,7 +5,15 @@ const ruleLabels: Record<AlertData["rule"], string> = {
   extra_base_hit: "extra_base_hit",
   hard_contact: "hard_contact",
   high_velocity_hit: "high_velocity_hit",
+  pitcher_extra_base_hit_allowed: "pitcher_extra_base_hit_allowed",
+  pitcher_high_exit_velocity_allowed: "pitcher_high_exit_velocity_allowed",
 };
+
+function ruleSignal(rule: AlertData["rule"]): string {
+  if (rule === "extra_base_hit" || rule === "pitcher_extra_base_hit_allowed") return "XBH";
+  if (rule === "hard_contact" || rule === "pitcher_high_exit_velocity_allowed") return "EV";
+  return "V+";
+}
 
 interface AlertsPanelProps {
   alerts: AlertData[];
@@ -34,13 +42,13 @@ export function AlertsPanel({ alerts, summary }: AlertsPanelProps) {
           {alerts.map((alert) => (
             <article className="alert-row" data-severity={alert.severity} key={alert.id}>
               <div className="alert-row__signal" aria-hidden="true">
-                {alert.rule === "extra_base_hit" ? "2B" : alert.rule === "hard_contact" ? "EV" : "V+"}
+                {ruleSignal(alert.rule)}
               </div>
               <div className="alert-row__body">
                 <div className="alert-row__titleline">
                   <div>
                     <h3>{alert.event}</h3>
-                    <span>{alert.player} · {alert.team}</span>
+                    <span>{alert.player} · {alert.team} · {alert.subjectRole}</span>
                   </div>
                 </div>
                 <p>{alert.detail}</p>

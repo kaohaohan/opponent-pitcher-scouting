@@ -1,36 +1,101 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { DataState } from "@/components/DataState";
 import { PlayerWatch } from "@/components/PlayerWatch";
-import { toPlayerWatchData } from "@/lib/adapters";
-import { useAlerts, useEvents, useLiveSync, usePlayers } from "@/lib/queries";
+import { subjectFromParticipant, toPlayerWatchData, type WatchSubject } from "@/lib/adapters";
+import type { GameParticipantDto } from "@/lib/api";
+import { useAlerts, useEvents, useGameParticipants, useLiveSync } from "@/lib/queries";
+
+type WatchRole = "batter" | "pitcher";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Player data could not be loaded.";
 }
 
+function unique(values: number[]): number[] {
+  return [...new Set(values)];
+}
+
+function subjectKey(role: WatchRole, id: number): string {
+  return `${role}:${id}`;
+}
+
+function groupByTeam(participants: GameParticipantDto[], role: WatchRole) {
+  const grouped = new Map<string, GameParticipantDto[]>();
+  for (const participant of participants) {
+    if (!participant.roles.includes(role)) continue;
+    const key = `${participant.team_side}:${participant.team_name}`;
+    grouped.set(key, [...(grouped.get(key) ?? []), participant]);
+  }
+  return [...grouped.entries()].map(([key, players]) => ({
+    key,
+    teamName: players[0]?.team_name ?? "Team",
+    players: players.sort((left, right) => left.name.localeCompare(right.name)),
+  }));
+}
+
 export function PlayerWatchPageClient() {
   const queryClient = useQueryClient();
-  const playersQuery = usePlayers();
   const [gameIdInput, setGameIdInput] = useState("");
-  const [watchedIdsInput, setWatchedIdsInput] = useState("");
-  const [selectedPlayerId, setSelectedPlayerId] = useState<number>();
+  const [loadedGameId, setLoadedGameId] = useState<number | null>(null);
   const [activeGameId, setActiveGameId] = useState<string>();
+  const [activeRole, setActiveRole] = useState<WatchRole>("batter");
+  const [selectedBatterIds, setSelectedBatterIds] = useState<number[]>([]);
+  const [selectedPitcherIds, setSelectedPitcherIds] = useState<number[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>();
   const [monitoring, setMonitoring] = useState(false);
-  const [syncMessage, setSyncMessage] = useState("Enter an MLB game ID and player IDs to monitor.");
+  const [syncMessage, setSyncMessage] = useState("Load a game to choose batters and pitchers.");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const monitoringRef = useRef(false);
   const syncLiveMutation = useLiveSync();
-  const player = playersQuery.data?.find((item) => item.id === selectedPlayerId) ?? playersQuery.data?.[0];
-  const eventsQuery = useEvents(player?.id, 200, Boolean(player), activeGameId);
+  const participantsQuery = useGameParticipants(loadedGameId);
   const alertsQuery = useAlerts();
 
-  const runSync = async (gameId: number, watchedPlayerIds: number[], keepMonitoring: boolean) => {
+  const participants = participantsQuery.data?.participants ?? [];
+  const subjects = useMemo(() => {
+    const byKey = new Map<string, WatchSubject>();
+    for (const participant of participants) {
+      if (selectedBatterIds.includes(participant.player_id) && participant.roles.includes("batter")) {
+        byKey.set(subjectKey("batter", participant.player_id), subjectFromParticipant(participant, "batter"));
+      }
+      if (selectedPitcherIds.includes(participant.player_id) && participant.roles.includes("pitcher")) {
+        byKey.set(subjectKey("pitcher", participant.player_id), subjectFromParticipant(participant, "pitcher"));
+      }
+    }
+    return [...byKey.entries()];
+  }, [participants, selectedBatterIds, selectedPitcherIds]);
+
+  useEffect(() => {
+    if (!selectedSubject || !subjects.some(([key]) => key === selectedSubject)) {
+      setSelectedSubject(subjects[0]?.[0]);
+    }
+  }, [selectedSubject, subjects]);
+
+  const subject = subjects.find(([key]) => key === selectedSubject)?.[1];
+  const eventsQuery = useEvents(
+    undefined,
+    200,
+    Boolean(subject && activeGameId),
+    activeGameId,
+    subject?.role === "batter" ? subject.id : undefined,
+    subject?.role === "pitcher" ? subject.id : undefined,
+  );
+
+  const runSync = async (
+    gameId: number,
+    batterIds: number[],
+    pitcherIds: number[],
+    keepMonitoring: boolean,
+  ) => {
     try {
-      const report = await syncLiveMutation.mutateAsync({ game_id: gameId, watched_player_ids: watchedPlayerIds });
+      const report = await syncLiveMutation.mutateAsync({
+        game_id: gameId,
+        batter_ids: batterIds,
+        pitcher_ids: pitcherIds,
+      });
       setActiveGameId(report.game_id);
       setSyncMessage(`${report.game_status ?? report.game_state ?? "Snapshot"}: ${report.stored} new, ${report.duplicates} duplicate${report.duplicates === 1 ? "" : "s"}.`);
       await Promise.all([
@@ -39,7 +104,7 @@ export function PlayerWatchPageClient() {
         queryClient.invalidateQueries({ queryKey: ["alerts"] }),
       ]);
       if (keepMonitoring && monitoringRef.current && report.game_state !== "Final") {
-        timerRef.current = setTimeout(() => void runSync(gameId, watchedPlayerIds, true), 20_000);
+        timerRef.current = setTimeout(() => void runSync(gameId, batterIds, pitcherIds, true), 20_000);
       } else if (report.game_state === "Final") {
         monitoringRef.current = false;
         setMonitoring(false);
@@ -48,7 +113,7 @@ export function PlayerWatchPageClient() {
     } catch (error) {
       setSyncMessage(errorMessage(error));
       if (keepMonitoring && monitoringRef.current) {
-        timerRef.current = setTimeout(() => void runSync(gameId, watchedPlayerIds, true), 20_000);
+        timerRef.current = setTimeout(() => void runSync(gameId, batterIds, pitcherIds, true), 20_000);
       }
     }
   };
@@ -58,6 +123,27 @@ export function PlayerWatchPageClient() {
     if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
 
+  const loadGame = () => {
+    const gameId = Number(gameIdInput.trim());
+    if (!Number.isInteger(gameId) || gameId <= 0) {
+      setSyncMessage("Use a positive MLB game ID.");
+      return;
+    }
+    setLoadedGameId(gameId);
+    setActiveGameId(undefined);
+    setSelectedBatterIds([]);
+    setSelectedPitcherIds([]);
+    setSelectedSubject(undefined);
+    setSyncMessage("Loading game participants...");
+  };
+
+  const toggleSelection = (role: WatchRole, id: number) => {
+    const update = (values: number[]) =>
+      values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
+    if (role === "batter") setSelectedBatterIds(update);
+    else setSelectedPitcherIds(update);
+  };
+
   const toggleMonitoring = () => {
     if (monitoring) {
       monitoringRef.current = false;
@@ -66,18 +152,27 @@ export function PlayerWatchPageClient() {
       setSyncMessage("Monitoring stopped.");
       return;
     }
-    const gameId = Number(gameIdInput.trim());
-    const watchedTokens = watchedIdsInput.split(",").map((value) => value.trim()).filter((value) => value.length > 0);
-    const watchedPlayerIds = watchedTokens.map((value) => Number(value));
-    if (!Number.isInteger(gameId) || gameId <= 0 || watchedPlayerIds.length === 0 || watchedPlayerIds.some((id) => !Number.isInteger(id) || id <= 0)) {
-      setSyncMessage("Use a positive MLB game ID and one or more positive player IDs.");
+    if (loadedGameId === null || selectedBatterIds.length + selectedPitcherIds.length === 0) {
+      setSyncMessage("Choose at least one batter or pitcher before monitoring.");
       return;
     }
+    const batterIds = unique(selectedBatterIds);
+    const pitcherIds = unique(selectedPitcherIds);
     monitoringRef.current = true;
     setMonitoring(true);
-    setSyncMessage("Syncing MLB snapshot…");
-    void runSync(gameId, [...new Set(watchedPlayerIds)], true);
+    setSyncMessage("Syncing MLB snapshot...");
+    void runSync(loadedGameId, batterIds, pitcherIds, true);
   };
+
+  const discoveryStatus = participantsQuery.isLoading ? (
+    <DataState kind="loading">Loading game participants...</DataState>
+  ) : participantsQuery.error ? (
+    <DataState kind="error" onRetry={() => void participantsQuery.refetch()}>
+      {errorMessage(participantsQuery.error)}
+    </DataState>
+  ) : loadedGameId !== null && participants.length === 0 ? (
+    <DataState>No announced or observed participants are available yet.</DataState>
+  ) : null;
 
   const controls = (
     <section className="panel live-controls" aria-labelledby="live-controls-title">
@@ -86,30 +181,68 @@ export function PlayerWatchPageClient() {
         <span className={monitoring ? "live-control-status is-active" : "live-control-status"}>{monitoring ? "Monitoring" : "Stopped"}</span>
       </div>
       <div className="live-controls__grid">
-        <label className="field-label">Game ID<input value={gameIdInput} onChange={(event) => setGameIdInput(event.target.value)} placeholder="776743" inputMode="numeric" /></label>
-        <label className="field-label">MLB player IDs<input value={watchedIdsInput} onChange={(event) => setWatchedIdsInput(event.target.value)} placeholder="657557, 607208" inputMode="numeric" /></label>
+        <label className="field-label">Game ID<input value={gameIdInput} onChange={(event) => setGameIdInput(event.target.value)} placeholder="776743" inputMode="numeric" disabled={monitoring} /></label>
+        <button className="secondary-button" type="button" onClick={loadGame} disabled={monitoring || participantsQuery.isFetching}>Load game</button>
         <button className="primary-button" type="button" onClick={toggleMonitoring}>{monitoring ? "Stop monitoring" : "Start monitoring"}</button>
       </div>
+      {participantsQuery.data ? (
+        <div className="game-discovery-summary">
+          <strong>{participantsQuery.data.teams.away.name} at {participantsQuery.data.teams.home.name}</strong>
+          <span>{participantsQuery.data.game_status ?? participantsQuery.data.game_state ?? "Game loaded"}</span>
+        </div>
+      ) : null}
+      <div className="role-tabs" role="tablist" aria-label="Watch role">
+        {(["batter", "pitcher"] as const).map((role) => (
+          <button key={role} type="button" className={activeRole === role ? "is-active" : ""} onClick={() => setActiveRole(role)}>
+            {role === "batter" ? "Batters" : "Pitchers"}
+          </button>
+        ))}
+      </div>
+      {discoveryStatus}
+      {participants.length > 0 ? (
+        <div className="participant-groups">
+          {groupByTeam(participants, activeRole).map((group) => (
+            <div className="participant-group" key={group.key}>
+              <h3>{group.teamName}</h3>
+              <div className="participant-list">
+                {group.players.map((participant) => {
+                  const checked = activeRole === "batter"
+                    ? selectedBatterIds.includes(participant.player_id)
+                    : selectedPitcherIds.includes(participant.player_id);
+                  return (
+                    <label className="participant-option" key={`${activeRole}-${participant.player_id}`}>
+                      <input type="checkbox" checked={checked} disabled={monitoring} onChange={() => toggleSelection(activeRole, participant.player_id)} />
+                      <span>{participant.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <p className="control-status">{syncMessage} Updates run about every 20 seconds while this page is open.</p>
     </section>
   );
 
-  if (playersQuery.isLoading || eventsQuery.isLoading || alertsQuery.isLoading) {
-    return <>{controls}<DataState kind="loading">Loading recorded player data…</DataState></>;
+  if (alertsQuery.isLoading || eventsQuery.isLoading) {
+    return <>{controls}<DataState kind="loading">Loading recorded player data...</DataState></>;
   }
-  const error = playersQuery.error ?? eventsQuery.error ?? alertsQuery.error;
-  const hasCachedData = Boolean(playersQuery.data || eventsQuery.data || alertsQuery.data);
+  const error = alertsQuery.error ?? eventsQuery.error;
+  const hasCachedData = Boolean(alertsQuery.data || eventsQuery.data);
   if (error && !hasCachedData) {
-    return <>{controls}<DataState kind="error" onRetry={() => void Promise.all([playersQuery.refetch(), eventsQuery.refetch(), alertsQuery.refetch()])}>{errorMessage(error)}</DataState></>;
+    return <>{controls}<DataState kind="error" onRetry={() => void Promise.all([alertsQuery.refetch(), eventsQuery.refetch()])}>{errorMessage(error)}</DataState></>;
   }
-  if (!player) return <>{controls}<DataState>No tracked players have been recorded yet.</DataState></>;
+  if (!subject) return <>{controls}<DataState>Choose a batter or pitcher to monitor.</DataState></>;
 
-  const view = toPlayerWatchData(player, eventsQuery.data ?? [], alertsQuery.data ?? []);
-  if (!view) return <>{controls}<DataState>No completed plate appearances are available for this player.</DataState></>;
+  const view = toPlayerWatchData(subject, eventsQuery.data ?? [], alertsQuery.data ?? [], subject.role);
+  if (!view) return <>{controls}<DataState>No completed plate appearances are available for this selection.</DataState></>;
 
   return <>
     {controls}
-    <label className="player-selector">Stored player<select value={player.id} onChange={(event) => setSelectedPlayerId(Number(event.target.value))}>{playersQuery.data?.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.team}</option>)}</select></label>
+    {subjects.length > 1 ? (
+      <label className="player-selector">Detail subject<select value={selectedSubject} onChange={(event) => setSelectedSubject(event.target.value)}>{subjects.map(([key, item]) => <option key={key} value={key}>{item.name} · {item.role}</option>)}</select></label>
+    ) : null}
     <PlayerWatch player={view} />
   </>;
 }

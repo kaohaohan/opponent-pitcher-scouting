@@ -15,7 +15,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
-from ..schemas import PlateAppearanceEvent
+from ..schemas import PlateAppearanceEvent, WatchRole
 
 HARD_CONTACT_EXIT_VELOCITY_MPH = 100.0
 HIGH_PITCH_VELOCITY_MPH = 95.0
@@ -25,6 +25,8 @@ class RuleType(StrEnum):
     EXTRA_BASE_HIT = "extra_base_hit"
     HARD_CONTACT = "hard_contact"
     HIGH_VELOCITY_HIT = "high_velocity_hit"
+    PITCHER_EXTRA_BASE_HIT_ALLOWED = "pitcher_extra_base_hit_allowed"
+    PITCHER_HIGH_EXIT_VELOCITY_ALLOWED = "pitcher_high_exit_velocity_allowed"
 
 
 @dataclass(frozen=True)
@@ -83,16 +85,63 @@ def high_velocity_hit(event: PlateAppearanceEvent) -> RuleMatch | None:
     )
 
 
+def pitcher_extra_base_hit_allowed(event: PlateAppearanceEvent) -> RuleMatch | None:
+    """Double, triple or home run allowed by the watched pitcher."""
+    if not event.is_extra_base_hit:
+        return None
+    return RuleMatch(
+        rule_type=RuleType.PITCHER_EXTRA_BASE_HIT_ALLOWED,
+        message=(
+            f"{event.pitcher_name} allowed a {event.result.lower()} "
+            f"to {event.batter_name} (inning {event.inning})."
+        ),
+    )
+
+
+def pitcher_high_exit_velocity_allowed(event: PlateAppearanceEvent) -> RuleMatch | None:
+    """Exit velocity at or above 100 mph allowed by the watched pitcher."""
+    if event.exit_velocity is None:
+        return None
+    if event.exit_velocity < HARD_CONTACT_EXIT_VELOCITY_MPH:
+        return None
+    return RuleMatch(
+        rule_type=RuleType.PITCHER_HIGH_EXIT_VELOCITY_ALLOWED,
+        message=(
+            f"{event.pitcher_name} allowed hard contact: {event.exit_velocity:.1f} mph "
+            f"exit velocity by {event.batter_name} (inning {event.inning})."
+        ),
+    )
+
+
 #: Evaluation order is the order alerts are persisted in.
-RULES: tuple[Rule, ...] = (extra_base_hit, hard_contact, high_velocity_hit)
+BATTER_RULES: tuple[Rule, ...] = (extra_base_hit, hard_contact, high_velocity_hit)
+PITCHER_RULES: tuple[Rule, ...] = (
+    pitcher_extra_base_hit_allowed,
+    pitcher_high_exit_velocity_allowed,
+)
+RULES: tuple[Rule, ...] = BATTER_RULES
 
 
 class RuleEngine:
     """Runs a set of rules against an event and collects the matches."""
 
-    def __init__(self, rules: Sequence[Rule] | None = None) -> None:
-        self.rules: tuple[Rule, ...] = tuple(rules) if rules is not None else RULES
+    def __init__(
+        self,
+        rules: Sequence[Rule] | None = None,
+        pitcher_rules: Sequence[Rule] | None = None,
+    ) -> None:
+        self.rules: tuple[Rule, ...] = tuple(rules) if rules is not None else BATTER_RULES
+        self.pitcher_rules: tuple[Rule, ...] = (
+            tuple(pitcher_rules) if pitcher_rules is not None else PITCHER_RULES
+        )
 
     def evaluate(self, event: PlateAppearanceEvent) -> list[RuleMatch]:
-        matches = (rule(event) for rule in self.rules)
+        return self.evaluate_for_role(event, WatchRole.BATTER)
+
+    def evaluate_for_role(
+        self, event: PlateAppearanceEvent, role: WatchRole
+    ) -> list[RuleMatch]:
+        role = WatchRole(role)
+        rules = self.pitcher_rules if role is WatchRole.PITCHER else self.rules
+        matches = (rule(event) for rule in rules)
         return [match for match in matches if match is not None]

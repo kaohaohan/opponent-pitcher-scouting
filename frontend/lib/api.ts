@@ -9,6 +9,14 @@ export interface PlateAppearanceDto {
   id: number;
   game_id: string;
   player_id: number;
+  batter_player_id: number;
+  pitcher_player_id: number | null;
+  batter_id: string;
+  batter_name: string;
+  batter_team: string;
+  pitcher_id: string | null;
+  pitcher_name: string;
+  pitcher_team: string | null;
   at_bat_index: number;
   inning: number;
   result: string;
@@ -22,7 +30,9 @@ export interface PlateAppearanceDto {
 
 export interface LiveSyncRequest {
   game_id: number;
-  watched_player_ids: number[];
+  watched_player_ids?: number[];
+  batter_ids?: number[];
+  pitcher_ids?: number[];
 }
 
 export interface LiveSyncReport {
@@ -42,9 +52,35 @@ export interface LiveSyncReport {
 export interface AlertDto {
   id: number;
   plate_appearance_id: number;
+  subject_role: "batter" | "pitcher";
   rule_type: string;
   message: string;
   created_at: string;
+}
+
+export interface TeamDto {
+  id: number | null;
+  name: string;
+}
+
+export interface GameParticipantDto {
+  player_id: number;
+  name: string;
+  team_id: number | null;
+  team_name: string;
+  team_side: "away" | "home";
+  roles: Array<"batter" | "pitcher">;
+}
+
+export interface GameParticipantsDto {
+  game_id: string;
+  game_state: string | null;
+  game_status: string | null;
+  teams: {
+    away: TeamDto;
+    home: TeamDto;
+  };
+  participants: GameParticipantDto[];
 }
 
 export type SampleStatusDto = "sufficient" | "insufficient_sample";
@@ -130,11 +166,23 @@ export function getPlayers(): Promise<PlayerDto[]> {
   return fetchJson<PlayerDto[]>("/api/players");
 }
 
-export function getEvents(playerId?: number, limit = 200, gameId?: string): Promise<PlateAppearanceDto[]> {
+export function getEvents(
+  playerId?: number,
+  limit = 200,
+  gameId?: string,
+  batterId?: number,
+  pitcherId?: number,
+): Promise<PlateAppearanceDto[]> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (playerId !== undefined) params.set("player_id", String(playerId));
   if (gameId) params.set("game_id", gameId);
+  if (batterId !== undefined) params.set("batter_id", String(batterId));
+  if (pitcherId !== undefined) params.set("pitcher_id", String(pitcherId));
   return fetchJson<PlateAppearanceDto[]>(`/api/events?${params.toString()}`);
+}
+
+export function getGameParticipants(gameId: number): Promise<GameParticipantsDto> {
+  return fetchJson<GameParticipantsDto>(`/api/live/games/${gameId}/participants`);
 }
 
 export function syncLive(request: LiveSyncRequest): Promise<LiveSyncReport> {

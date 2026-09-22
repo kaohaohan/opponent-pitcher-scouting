@@ -8,15 +8,21 @@ rule engine or the database learning anything about MLB's payloads.
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Result strings are normalized to this vocabulary by the sources.
 HIT_RESULTS: frozenset[str] = frozenset({"Single", "Double", "Triple", "Home Run"})
 EXTRA_BASE_HIT_RESULTS: frozenset[str] = frozenset({"Double", "Triple", "Home Run"})
 
 _MISSING_SENTINELS = {"", "-", "null", "none", "n/a", "na"}
+
+
+class WatchRole(StrEnum):
+    BATTER = "batter"
+    PITCHER = "pitcher"
 
 
 class PlateAppearanceEvent(BaseModel):
@@ -30,9 +36,13 @@ class PlateAppearanceEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     # Who
-    external_player_id: str = Field(min_length=1)
-    player_name: str = Field(min_length=1)
-    team: str = Field(min_length=1)
+    batter_id: str = Field(min_length=1)
+    batter_name: str = Field(min_length=1)
+    batter_team: str = Field(min_length=1)
+    pitcher_id: str | None = Field(default=None, min_length=1)
+    pitcher_name: str = Field(min_length=1)
+    pitcher_team: str | None = Field(default=None, min_length=1)
+    matched_roles: tuple[WatchRole, ...] = Field(default=(WatchRole.BATTER,), exclude=True)
 
     # Where in the game
     game_id: str = Field(min_length=1)
@@ -41,7 +51,6 @@ class PlateAppearanceEvent(BaseModel):
 
     # What happened
     result: str = Field(min_length=1)
-    pitcher: str = Field(min_length=1)
     is_complete: bool = True
 
     # Statcast — may legitimately be absent
@@ -49,6 +58,24 @@ class PlateAppearanceEvent(BaseModel):
     pitch_velocity: float | None = Field(default=None, gt=0)
     exit_velocity: float | None = Field(default=None, gt=0)
     launch_angle: float | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_legacy_batter_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        if "batter_id" not in normalized and "external_player_id" in normalized:
+            normalized["batter_id"] = normalized["external_player_id"]
+        if "batter_name" not in normalized and "player_name" in normalized:
+            normalized["batter_name"] = normalized["player_name"]
+        if "batter_team" not in normalized and "team" in normalized:
+            normalized["batter_team"] = normalized["team"]
+        if "pitcher_name" not in normalized and "pitcher" in normalized:
+            normalized["pitcher_name"] = normalized["pitcher"]
+        for key in ("external_player_id", "player_name", "team", "pitcher"):
+            normalized.pop(key, None)
+        return normalized
 
     @field_validator(
         "pitch_type", "pitch_velocity", "exit_velocity", "launch_angle", mode="before"
@@ -68,6 +95,22 @@ class PlateAppearanceEvent(BaseModel):
     def is_extra_base_hit(self) -> bool:
         return self.result in EXTRA_BASE_HIT_RESULTS
 
+    @property
+    def external_player_id(self) -> str:
+        return self.batter_id
+
+    @property
+    def player_name(self) -> str:
+        return self.batter_name
+
+    @property
+    def team(self) -> str:
+        return self.batter_team
+
+    @property
+    def pitcher(self) -> str:
+        return self.pitcher_name
+
 
 class PlayerRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -84,6 +127,14 @@ class PlateAppearanceRead(BaseModel):
     id: int
     game_id: str
     player_id: int
+    batter_player_id: int
+    pitcher_player_id: int | None
+    batter_id: str
+    batter_name: str
+    batter_team: str
+    pitcher_id: str | None
+    pitcher_name: str
+    pitcher_team: str | None
     at_bat_index: int
     inning: int
     result: str
@@ -100,6 +151,7 @@ class AlertRead(BaseModel):
 
     id: int
     plate_appearance_id: int
+    subject_role: WatchRole
     rule_type: str
     message: str
     created_at: datetime
@@ -122,14 +174,50 @@ class ReplayReport(BaseModel):
 
 class LiveSyncRequest(BaseModel):
     game_id: int = Field(gt=0)
-    watched_player_ids: list[int] = Field(min_length=1)
+    watched_player_ids: list[int] = Field(default_factory=list)
+    batter_ids: list[int] = Field(default_factory=list)
+    pitcher_ids: list[int] = Field(default_factory=list)
 
-    @field_validator("watched_player_ids")
-    @classmethod
-    def _positive_ids(cls, value: list[int]) -> list[int]:
-        if any(player_id <= 0 for player_id in value):
-            raise ValueError("watched_player_ids must contain positive integers")
-        return list(dict.fromkeys(value))
+    @model_validator(mode="after")
+    def _normalize_ids(self) -> LiveSyncRequest:
+        self.watched_player_ids = _dedupe_positive(
+            self.watched_player_ids, "watched_player_ids"
+        )
+        self.batter_ids = _dedupe_positive(
+            [*self.watched_player_ids, *self.batter_ids], "batter_ids"
+        )
+        self.pitcher_ids = _dedupe_positive(self.pitcher_ids, "pitcher_ids")
+        if not self.batter_ids and not self.pitcher_ids:
+            raise ValueError("at least one batter_ids or pitcher_ids value is required")
+        return self
+
+
+def _dedupe_positive(values: list[int], field_name: str) -> list[int]:
+    if any(player_id <= 0 for player_id in values):
+        raise ValueError(f"{field_name} must contain positive integers")
+    return list(dict.fromkeys(values))
+
+
+class TeamRead(BaseModel):
+    id: int | None = None
+    name: str
+
+
+class ParticipantRead(BaseModel):
+    player_id: int
+    name: str
+    team_id: int | None = None
+    team_name: str
+    team_side: str
+    roles: list[WatchRole]
+
+
+class GameParticipantsRead(BaseModel):
+    game_id: str
+    game_state: str | None = None
+    game_status: str | None = None
+    teams: dict[str, TeamRead]
+    participants: list[ParticipantRead]
 
 
 class LiveSyncReport(ReplayReport):

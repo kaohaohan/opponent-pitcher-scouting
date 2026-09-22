@@ -122,8 +122,13 @@ def test_live_sync_endpoint_ingests_and_deduplicates_snapshot(client, monkeypatc
     payload = json.loads(fixture.read_text(encoding="utf-8"))
     transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
 
-    def source_factory(game_id, watched_player_ids):
-        return LiveSource(game_id, watched_player_ids, client=httpx.Client(transport=transport))
+    def source_factory(game_id, batter_ids=(), pitcher_ids=()):
+        return LiveSource(
+            game_id,
+            batter_ids=batter_ids,
+            pitcher_ids=pitcher_ids,
+            client=httpx.Client(transport=transport),
+        )
 
     monkeypatch.setattr(routes, "LiveSource", source_factory)
     response = client.post(
@@ -149,3 +154,81 @@ def test_live_sync_validates_request_before_fetch(client):
     response = client.post("/api/live/sync", json={"game_id": 0, "watched_player_ids": []})
 
     assert response.status_code == 422
+
+
+def test_live_sync_accepts_pitcher_ids(client, monkeypatch):
+    fixture = Path(__file__).parent / "fixtures" / "mlb_live_feed_776743_20250814_230000.json"
+    payload = json.loads(fixture.read_text(encoding="utf-8"))
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+
+    def source_factory(game_id, batter_ids=(), pitcher_ids=()):
+        return LiveSource(
+            game_id,
+            batter_ids=batter_ids,
+            pitcher_ids=pitcher_ids,
+            client=httpx.Client(transport=transport),
+        )
+
+    monkeypatch.setattr(routes, "LiveSource", source_factory)
+    response = client.post("/api/live/sync", json={"game_id": 776743, "pitcher_ids": [701002]})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["events_read"] == 2
+    assert body["stored"] == 2
+    assert body["alerts_created"] == 0
+    events = client.get("/api/events?pitcher_id=701002").json()
+    assert [event["at_bat_index"] for event in events] == [6, 7]
+    assert {event["pitcher_name"] for event in events} == {"Two-Way Reserve"}
+
+
+def test_live_sync_can_add_missing_pitcher_alert_for_existing_pa(client, monkeypatch):
+    fixture = Path(__file__).parent / "fixtures" / "mlb_live_feed_776743_20250814_230000.json"
+    payload = json.loads(fixture.read_text(encoding="utf-8"))
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+
+    def source_factory(game_id, batter_ids=(), pitcher_ids=()):
+        return LiveSource(
+            game_id,
+            batter_ids=batter_ids,
+            pitcher_ids=pitcher_ids,
+            client=httpx.Client(transport=transport),
+        )
+
+    monkeypatch.setattr(routes, "LiveSource", source_factory)
+    client.post("/api/live/sync", json={"game_id": 776743, "batter_ids": [657557]})
+    second = client.post("/api/live/sync", json={"game_id": 776743, "pitcher_ids": [542881]})
+    third = client.post("/api/live/sync", json={"game_id": 776743, "pitcher_ids": [542881]})
+
+    assert second.status_code == 200
+    assert second.json()["stored"] == 0
+    assert second.json()["duplicates"] == 1
+    assert second.json()["alerts_created"] == 2
+    assert third.json()["alerts_created"] == 0
+    pitcher_alerts = client.get("/api/alerts?subject_role=pitcher").json()
+    assert sorted(alert["rule_type"] for alert in pitcher_alerts) == [
+        "pitcher_extra_base_hit_allowed",
+        "pitcher_high_exit_velocity_allowed",
+    ]
+
+
+def test_game_participants_endpoint(client, monkeypatch):
+    fixture = Path(__file__).parent / "fixtures" / "mlb_live_feed_776743_20250814_230000.json"
+    payload = json.loads(fixture.read_text(encoding="utf-8"))
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+
+    def source_factory(game_id):
+        return LiveSource(game_id, client=httpx.Client(transport=transport))
+
+    monkeypatch.setattr(routes, "LiveSource", source_factory)
+    response = client.get("/api/live/games/776743/participants")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["teams"]["away"]["id"] == 145
+    assert body["participants"]
+    by_id = {participant["player_id"]: participant for participant in body["participants"]}
+    assert by_id[657557]["roles"] == ["batter"]
+    assert by_id[542881]["roles"] == ["pitcher"]
+    assert by_id[701002]["roles"] == ["batter", "pitcher"]
+    assert client.get("/api/players").json() == []

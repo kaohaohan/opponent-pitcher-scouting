@@ -24,6 +24,21 @@ def rule_types(engine: RuleEngine, **overrides) -> set[RuleType]:
     return {match.rule_type for match in engine.evaluate(event(**overrides))}
 
 
+def pitcher_rule_types(engine: RuleEngine, **overrides) -> set[RuleType]:
+    return {
+        match.rule_type
+        for match in engine.evaluate_for_role(
+            event(
+                pitcher_id="mock-123",
+                pitcher_name="Mitchell Parker",
+                pitcher_team="Washington Nationals",
+                **overrides,
+            ),
+            "pitcher",
+        )
+    }
+
+
 @pytest.mark.parametrize("result", ["Double", "Triple", "Home Run"])
 def test_extra_base_hit_fires(engine, result):
     assert RuleType.EXTRA_BASE_HIT in rule_types(engine, result=result)
@@ -110,3 +125,29 @@ def test_hard_contact_alert_is_persisted(processor, session_factory):
         rule_types_stored = set(session.execute(select(Alert.rule_type)).scalars())
     assert rule_types_stored == {"hard_contact"}
     assert len(result.alerts) == 1
+
+
+@pytest.mark.parametrize("result", ["Double", "Triple", "Home Run"])
+def test_pitcher_extra_base_hit_allowed_fires(engine, result):
+    assert RuleType.PITCHER_EXTRA_BASE_HIT_ALLOWED in pitcher_rule_types(
+        engine, result=result
+    )
+
+
+def test_pitcher_extra_base_hit_allowed_ignores_singles(engine):
+    assert RuleType.PITCHER_EXTRA_BASE_HIT_ALLOWED not in pitcher_rule_types(
+        engine, result="Single"
+    )
+
+
+@pytest.mark.parametrize("exit_velocity", [100.0, 107.8])
+def test_pitcher_high_exit_velocity_allowed_fires_at_threshold(engine, exit_velocity):
+    assert RuleType.PITCHER_HIGH_EXIT_VELOCITY_ALLOWED in pitcher_rule_types(
+        engine, exit_velocity=exit_velocity
+    )
+
+
+def test_pitcher_high_exit_velocity_allowed_is_null_safe(engine):
+    assert RuleType.PITCHER_HIGH_EXIT_VELOCITY_ALLOWED not in pitcher_rule_types(
+        engine, exit_velocity=None
+    )

@@ -51,6 +51,7 @@ export interface PlateAppearanceData {
   inning: string;
   opponent: string;
   pitcher: string;
+  batter: string;
   result: string;
   resultCode: string;
   pitchType: string;
@@ -60,6 +61,7 @@ export interface PlateAppearanceData {
 }
 
 export interface PlayerWatchData {
+  role: "batter" | "pitcher";
   name: string;
   jerseyNumber: string;
   team: string;
@@ -78,11 +80,17 @@ export interface AlertData {
   id: string;
   player: string;
   team: string;
+  subjectRole: "batter" | "pitcher";
   event: string;
   detail: string;
   gameMoment: string;
   timestamp: string;
-  rule: "extra_base_hit" | "hard_contact" | "high_velocity_hit";
+  rule:
+    | "extra_base_hit"
+    | "hard_contact"
+    | "high_velocity_hit"
+    | "pitcher_extra_base_hit_allowed"
+    | "pitcher_high_exit_velocity_allowed";
   severity: "standard" | "high";
 }
 

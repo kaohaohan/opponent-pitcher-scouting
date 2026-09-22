@@ -1,8 +1,8 @@
 # Taiwanese Baseball Player Watch
 
 An **event-monitoring system**, not a statistics dashboard. It follows selected
-Taiwanese hitters, detects newly completed plate appearances, evaluates watch
-rules against them, and records alerts.
+batters and pitchers, detects newly completed plate appearances, evaluates
+role-specific watch rules against them, and records alerts.
 
 The distinction matters for the design: nothing here aggregates or projects.
 The interesting questions are "has this plate appearance already been seen?" and
@@ -70,10 +70,12 @@ complexity rules, and no mypy; the gate is intentionally small.
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `GET` | `/api/players` | Players we have seen plate appearances for |
-| `GET` | `/api/events` | Stored plate appearances. Filters: `game_id`, `player_id`, `limit` |
-| `GET` | `/api/alerts` | Alerts, newest first. Filters: `rule_type`, `limit` |
+| `GET` | `/api/players` | Batter-oriented list of players we have seen plate appearances for |
+| `GET` | `/api/events` | Stored plate appearances. Filters: `game_id`, legacy internal `player_id`, external `batter_id`, external `pitcher_id`, `limit` |
+| `GET` | `/api/alerts` | Alerts, newest first. Filters: `rule_type`, `subject_role`, `limit` |
 | `POST` | `/api/replay` | **Development/demo only.** Replays a fixture through the pipeline. Optional `fixture_path` |
+| `GET` | `/api/live/games/{game_id}/participants` | Read-only MLB game participant discovery for batter/pitcher selection |
+| `POST` | `/api/live/sync` | Fetches one MLB live snapshot and ingests completed PAs for selected `batter_ids` and/or `pitcher_ids`; legacy `watched_player_ids` still means batter IDs |
 | `POST` | `/api/pregame/brief` | Fetches one pitcher's recent Statcast pitches, aggregates pitch usage, and returns an LLM-written brief plus the structured context it was built from. Body: `pitcher_id`, `start_date`, `end_date` |
 | `GET` | `/health` | Liveness |
 
@@ -97,9 +99,9 @@ itself broke part-way through (see **Failure handling** below).
 ## Architecture
 
 ```
-LiveSource (interface only) --\
-                               --> PlateAppearanceProcessor --> RuleEngine --> SQLite
-ReplaySource (JSON fixture) --/
+LiveSource (MLB snapshot) --\
+                             --> PlateAppearanceProcessor --> RuleEngine --> SQLite
+ReplaySource (JSON fixture) -/
 ```
 
 ```
@@ -107,6 +109,7 @@ app/
 ├── main.py                  FastAPI app factory, static mount, table creation on startup
 ├── config.py                Env-var settings with defaults
 ├── db.py                    Engine, session factory, declarative base
+├── migrations.py            Additive SQLite migrations for existing local DBs
 ├── models.py                ORM: Player, PlateAppearance, Alert
 ├── schemas.py               PlateAppearanceEvent (the normalized contract) + read models
 ├── repository.py            The only module that writes SQL; owns conflict handling
@@ -114,7 +117,7 @@ app/
 ├── sources/
 │   ├── base.py              PlateAppearanceSource ABC — the source contract
 │   ├── replay.py            Sequential replay from a JSON fixture
-│   └── live.py              Live feed interface; raises NotImplementedError
+│   └── live.py              MLB live feed adapter + participant discovery
 ├── processing/processor.py  The six-step pipeline
 ├── rules/engine.py          Watch rules (pure functions) + RuleEngine
 └── fixtures/                Mock historical game data
@@ -129,8 +132,14 @@ app/
    news yet.
 3. Normalize and validate into a `PlateAppearanceEvent`.
 4. **Insert idempotently.**
-5. Evaluate the watch rules — *only for an event that was actually new*.
+5. Evaluate watch rules for the matched role(s).
 6. Persist the resulting alerts.
+
+A plate appearance is still stored once, keyed by `(game_id, at_bat_index)`.
+Alerts are separately unique on `(plate_appearance_id, subject_role, rule_type)`,
+so a repeated sync creates no duplicate alerts, while a PA first stored for a
+watched batter can later raise the missing pitcher alerts if that pitcher is
+selected.
 
 ### Watch rules
 
@@ -139,6 +148,8 @@ app/
 | `extra_base_hit` | `result` in Double, Triple, Home Run |
 | `hard_contact` | `exit_velocity >= 100` mph |
 | `high_velocity_hit` | `pitch_velocity >= 95` mph **and** `result` is a hit |
+| `pitcher_extra_base_hit_allowed` | Watched pitcher allowed a double, triple, or home run |
+| `pitcher_high_exit_velocity_allowed` | Watched pitcher allowed `exit_velocity >= 100` mph |
 
 Rules are pure functions from an event to an optional `RuleMatch`, so they are
 tested without touching a database and can be reordered or extended by appending
@@ -167,19 +178,26 @@ The fixture and the test suite both cover this case deliberately.
 **One normalized event contract, shared by every source.** A source's only job is
 to yield mappings shaped like `PlateAppearanceEvent`; feed-specific concerns —
 HTTP, polling, MLB's field names, unit conversions — stay behind
-`PlateAppearanceSource`. Adding a real MLB feed therefore means writing one
-`events()` method. The processor, the rules and the schema do not change.
+`PlateAppearanceSource`. Live events carry explicit batter and pitcher
+identities plus transient matched roles. Legacy replay fields
+(`external_player_id`, `player_name`, `team`, `pitcher`) are still accepted as
+batter aliases.
 
 Sources emit plain mappings rather than validated models on purpose: validation
 belongs to the processor, so a malformed event cannot be silently dropped inside
 a source, and every source is held to the same standard.
 
-**`LiveSource` is an interface, not a stub with fake behavior.** It pins down the
-shape of the eventual integration (poll a game, watch a set of players, emit
-normalized events) and raises `NotImplementedError`. Because idempotency is a
-database guarantee, a live source can safely re-emit events it is unsure about
-instead of maintaining perfect client-side state — a useful property for a
-polling feed that may see the same at-bat several times.
+**`LiveSource` is one-shot by design.** The browser owns polling. Each sync
+fetches one MLB snapshot, emits completed PAs for any watched batter or pitcher,
+and then stops. Because idempotency is a database guarantee, a live source can
+safely re-emit events it is unsure about instead of maintaining perfect
+client-side state.
+
+**Existing SQLite databases upgrade in place.** Startup still calls
+`Base.metadata.create_all()` for fresh databases, then runs additive migrations.
+The Phase 4 migration adds nullable pitcher linkage, backfills existing alerts
+as `subject_role = 'batter'`, and creates the role-aware alert uniqueness index.
+Historical pitcher IDs remain `NULL`; names are not backfilled by guessing.
 
 ### Failure handling
 
@@ -196,13 +214,13 @@ A source failing part-way through — a live feed losing its connection, a fixtu
 that is not valid JSON — **does not discard the events already ingested**. Each
 event commits in its own transaction, so an upstream failure cannot roll back or
 corrupt earlier plate appearances; the report still counts what was stored before
-the failure. This matters most for the source that does not exist yet: a polling
-live feed will fail mid-game routinely, and it must be able to resume rather than
+the failure. This matters most for live polling: MLB feed errors will happen
+mid-game, and the next browser-driven sync must be able to resume rather than
 lose the innings it already saw.
 
 `NotImplementedError` is intentionally *not* caught. It means unimplemented code,
-not an upstream outage, so `process_source(LiveSource(...))` raises rather than
-quietly reporting a feed failure.
+not an upstream outage, so source implementations still fail loudly when a
+method is missing rather than quietly reporting a feed failure.
 
 **The replay trigger is an HTTP endpoint rather than a script**, so the demo works
 from the UI button with no second entry point to keep in sync. It is marked
@@ -213,10 +231,9 @@ authenticated.
 
 These are deliberate for an MVP skeleton:
 
-* `Base.metadata.create_all()` on startup instead of migrations.
 * No authentication on any endpoint, including `POST /api/replay`.
-* Players are created implicitly by ingestion; there is no watch-list management
-  endpoint yet, so "selected hitters" are whichever players appear in a source.
+* Players are created implicitly by ingestion; game participant discovery is
+  read-only and there are no persisted watchlists.
 * `ON CONFLICT` uses the SQLite dialect. Moving to Postgres means swapping that
   import in `repository.py` — the single place SQL is written.
 * Result strings are the normalization vocabulary (`"Double"`, `"Home Run"`, …);
@@ -322,41 +339,56 @@ matchup modeling, handedness splits, heatmaps, bat tracking, RAG, vector
 databases, autonomous agents, WebSockets, multiple LLM providers, and an
 OpenAI integration.
 
-## Phase 3: MLB live feed
+## Phase 4: MLB game monitoring
 
-Player Watch can now synchronize one MLB game snapshot with:
+Player Watch starts from a game ID. The UI calls participant discovery, lets the
+user choose batters and pitchers by name, and then synchronizes one MLB game
+snapshot with:
 
 ```http
 POST /api/live/sync
 Content-Type: application/json
 
-{"game_id": 776743, "watched_player_ids": [657557, 607208]}
+{"game_id": 776743, "batter_ids": [657557], "pitcher_ids": [542881]}
 ```
 
-`game_id` and watched IDs are positive integers. The response reports the MLB
-game state/status plus the same ingestion counters as replay (`stored`,
-`duplicates`, `invalid`, and `alerts_created`). A nonexistent game returns
-`404`; validation failures return `422`; MLB timeouts, non-404 HTTP failures,
-invalid JSON, and unusable feed schemas return `502`.
+`game_id`, `batter_ids`, and `pitcher_ids` are positive integers. Both arrays
+default to empty, but at least one selected player is required. The Phase 3
+`watched_player_ids` field is still accepted and is normalized into
+`batter_ids`. The response reports the MLB game state/status plus the same
+ingestion counters as replay (`stored`, `duplicates`, `invalid`, and
+`alerts_created`). A nonexistent game returns `404`; validation failures return
+`422`; MLB timeouts, non-404 HTTP failures, invalid JSON, and unusable feed
+schemas return `502`.
+
+Participant discovery is read-only:
+
+```http
+GET /api/live/games/776743/participants
+```
+
+It returns game status, home/away teams, and deterministic participant rows with
+MLB player ID, name, team, side, and roles (`batter`, `pitcher`, or both).
 
 The live adapter fetches `https://statsapi.mlb.com/api/v1.1/game/{game_id}/feed/live`
-once per request, traverses completed plays oldest-first, and emits only watched
-batters. MLB values map into the shared `PlateAppearanceEvent` contract:
+once per request, traverses completed plays oldest-first, and emits a PA once
+when either side is selected. MLB values map into the shared
+`PlateAppearanceEvent` contract:
 
 | Normalized field | MLB field |
 | --- | --- |
-| `external_player_id`, `player_name` | `matchup.batter.id`, `matchup.batter.fullName` |
-| `team` | `gameData.teams.away/home.name` by `about.isTopInning` |
+| `batter_id`, `batter_name` | `matchup.batter.id`, `matchup.batter.fullName` |
+| `pitcher_id`, `pitcher_name` | `matchup.pitcher.id`, `matchup.pitcher.fullName` |
+| `batter_team`, `pitcher_team` | `gameData.teams.away/home.name` by `about.isTopInning` |
 | `at_bat_index`, `inning`, `result`, `is_complete` | `about.atBatIndex`, `about.inning`, `result.event`, `about.isComplete` |
-| `pitcher` | `matchup.pitcher.fullName` |
 | pitch/Statcast fields | terminal `playEvents[]` item with `isPitch: true` |
 
 Missing measurements remain `null`, never zero. Malformed individual watched
 plays are allowed to reach the processor for validation; a play that cannot be
-attributed to a watched batter is skipped. Feed-level errors abort that sync
-before ingestion. The existing SQLite unique key on `(game_id, at_bat_index)`
-and `ON CONFLICT DO NOTHING` make repeated synchronization safe and prevent
-duplicate alerts.
+attributed to any watched batter or pitcher is skipped. Feed-level errors abort
+that sync before ingestion. The existing SQLite unique key on
+`(game_id, at_bat_index)` and role-aware alert uniqueness make repeated
+synchronization safe and prevent duplicate alerts.
 
 Polling belongs to the browser, not the backend. Player Watch performs an
 immediate sync and schedules the next one 20 seconds after the prior request
@@ -367,9 +399,9 @@ Monitoring is intentionally request-driven and is not an unattended worker;
 watchlists are not persisted. Full-game rescanning is accepted for this MVP.
 
 For a real smoke test, start the app with a fresh SQLite database, open Player
-Watch, enter game `776743` and player `657557` (Paul DeJong), then start
-monitoring. Verify `/api/players`, `/api/events?game_id=776743`, and
-`/api/alerts`; repeat the POST and confirm `stored` is zero, duplicate counts
-increase, and database rows/alerts do not. The automated tests use the trimmed
-historical snapshot in `tests/fixtures/mlb_live_feed_776743_20250814_230000.json`
-and never contact MLB.
+Watch, enter game `776743`, load the game, choose at least one batter or pitcher,
+then start monitoring. Verify `/api/events?game_id=776743` and `/api/alerts`;
+repeat the POST and confirm `stored` is zero, duplicate counts increase, and
+database rows/alerts do not. The automated tests use the trimmed historical
+snapshot in `tests/fixtures/mlb_live_feed_776743_20250814_230000.json` and never
+contact MLB.

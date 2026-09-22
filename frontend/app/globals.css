@@ -963,7 +963,7 @@ select:focus-visible {
   align-items: end;
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(150px, 0.7fr) minmax(240px, 1.3fr) auto;
+  grid-template-columns: minmax(160px, 1fr) auto auto;
 }
 
 .field-label,
@@ -1007,6 +1007,103 @@ select:focus-visible {
 
 .live-control-status.is-active {
   color: var(--green);
+}
+
+.game-discovery-summary {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  display: flex;
+  font-size: 0.78rem;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.game-discovery-summary strong {
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.role-tabs {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 14px;
+  max-width: 280px;
+  padding: 3px;
+}
+
+.role-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 760;
+  min-height: 30px;
+  padding: 0 14px;
+}
+
+.role-tabs button.is-active {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.participant-groups {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.participant-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.participant-group h3 {
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.78rem;
+  margin: 0;
+  padding: 9px 11px;
+}
+
+.participant-list {
+  display: grid;
+  max-height: 230px;
+  overflow: auto;
+  padding: 6px;
+}
+
+.participant-option {
+  align-items: center;
+  border-radius: 5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.78rem;
+  gap: 8px;
+  min-height: 32px;
+  padding: 5px 7px;
+}
+
+.participant-option:hover {
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+}
+
+.participant-option input {
+  accent-color: var(--green);
+  height: 15px;
+  width: 15px;
 }
 
 .player-selector {
@@ -1511,6 +1608,10 @@ select:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .participant-groups {
+    grid-template-columns: 1fr;
+  }
+
   .latest-pa,
   .triggered-rules,
   .recent-pa {
@@ -1555,6 +1656,16 @@ select:focus-visible {
   .primary-button,
   .control-status {
     grid-column: 1;
+  }
+
+  .live-controls__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .game-discovery-summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .pitch-row {

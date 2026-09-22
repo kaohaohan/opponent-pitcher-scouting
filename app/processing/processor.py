@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .. import repository
 from ..rules import RuleEngine, RuleMatch
-from ..schemas import PlateAppearanceEvent, ReplayReport
+from ..schemas import PlateAppearanceEvent, ReplayReport, WatchRole
 from ..sources.base import PlateAppearanceSource, RawEvent
 
 logger = logging.getLogger(__name__)
@@ -87,21 +87,60 @@ class PlateAppearanceProcessor:
         return result
 
     def _persist(self, session: Session, event: PlateAppearanceEvent) -> ProcessResult:
-        player = repository.get_or_create_player(session, event)
+        batter = repository.get_or_create_player(
+            session, event.batter_id, event.batter_name, event.batter_team
+        )
+        pitcher_player = (
+            repository.get_or_create_player(
+                session, event.pitcher_id, event.pitcher_name, event.pitcher_team
+            )
+            if event.pitcher_id is not None
+            else None
+        )
 
         # Step 4
-        plate_appearance_id = repository.insert_plate_appearance(session, event, player.id)
+        plate_appearance_id = repository.insert_plate_appearance(
+            session,
+            event,
+            batter.id,
+            pitcher_player.id if pitcher_player is not None else None,
+        )
         if plate_appearance_id is None:
-            return ProcessResult(outcome=ProcessOutcome.DUPLICATE)
+            existing_id = repository.get_plate_appearance_id(
+                session, event.game_id, event.at_bat_index
+            )
+            if existing_id is None:
+                return ProcessResult(outcome=ProcessOutcome.DUPLICATE)
+            repository.fill_missing_pitcher_player(
+                session, existing_id, pitcher_player.id if pitcher_player is not None else None
+            )
+            alerts = self._evaluate_and_store_alerts(session, existing_id, event)
+            return ProcessResult(
+                outcome=ProcessOutcome.DUPLICATE,
+                plate_appearance_id=existing_id if alerts else None,
+                alerts=tuple(alerts),
+            )
 
         # Steps 5 and 6
-        matches = self._rule_engine.evaluate(event)
-        repository.insert_alerts(session, plate_appearance_id, matches)
+        matches = self._evaluate_and_store_alerts(session, plate_appearance_id, event)
         return ProcessResult(
             outcome=ProcessOutcome.STORED,
             plate_appearance_id=plate_appearance_id,
             alerts=tuple(matches),
         )
+
+    def _evaluate_and_store_alerts(
+        self, session: Session, plate_appearance_id: int, event: PlateAppearanceEvent
+    ) -> list[RuleMatch]:
+        created: list[RuleMatch] = []
+        for role in _dedupe_roles(event.matched_roles):
+            matches = self._rule_engine.evaluate_for_role(event, role)
+            alerts = repository.insert_alerts(session, plate_appearance_id, role, matches)
+            created_rule_types = {alert.rule_type for alert in alerts}
+            created.extend(
+                match for match in matches if str(match.rule_type) in created_rule_types
+            )
+        return created
 
     def process_source(
         self, source: PlateAppearanceSource, *, propagate_source_errors: bool = False
@@ -156,6 +195,10 @@ class PlateAppearanceProcessor:
 
 def _describe(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {exc}"
+
+
+def _dedupe_roles(roles: Sequence[WatchRole]) -> tuple[WatchRole, ...]:
+    return tuple(dict.fromkeys(roles))
 
 
 def _summarize(

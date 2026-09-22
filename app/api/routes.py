@@ -14,11 +14,13 @@ from ..db import SessionFactory, get_session
 from ..processing import PlateAppearanceProcessor
 from ..schemas import (
     AlertRead,
+    GameParticipantsRead,
     LiveSyncReport,
     LiveSyncRequest,
     PlateAppearanceRead,
     PlayerRead,
     ReplayReport,
+    WatchRole,
 )
 from ..sources import LiveGameNotFound, LiveSource, LiveSourceError, ReplaySource
 
@@ -35,12 +37,19 @@ def get_players(session: Session = Depends(get_session)) -> list[PlayerRead]:
 def get_events(
     game_id: str | None = None,
     player_id: int | None = None,
+    batter_id: str | None = None,
+    pitcher_id: str | None = None,
     limit: int = Query(default=200, ge=1, le=1000),
     session: Session = Depends(get_session),
 ) -> list[PlateAppearanceRead]:
     """Stored plate appearances, oldest first within each game."""
     rows = repository.list_plate_appearances(
-        session, game_id=game_id, player_id=player_id, limit=limit
+        session,
+        game_id=game_id,
+        player_id=player_id,
+        batter_id=batter_id,
+        pitcher_id=pitcher_id,
+        limit=limit,
     )
     return [PlateAppearanceRead.model_validate(row) for row in rows]
 
@@ -48,11 +57,14 @@ def get_events(
 @router.get("/alerts", response_model=list[AlertRead])
 def get_alerts(
     rule_type: str | None = None,
+    subject_role: WatchRole | None = None,
     limit: int = Query(default=200, ge=1, le=1000),
     session: Session = Depends(get_session),
 ) -> list[AlertRead]:
     """Alerts the rule engine has raised, newest first."""
-    rows = repository.list_alerts(session, rule_type=rule_type, limit=limit)
+    rows = repository.list_alerts(
+        session, rule_type=rule_type, subject_role=subject_role, limit=limit
+    )
     return [AlertRead.model_validate(row) for row in rows]
 
 
@@ -80,7 +92,8 @@ def sync_live(request: LiveSyncRequest) -> LiveSyncReport:
     """Fetch one MLB snapshot and ingest completed PAs for watched players."""
     source = LiveSource(
         game_id=request.game_id,
-        watched_player_ids=tuple(str(player_id) for player_id in request.watched_player_ids),
+        batter_ids=tuple(str(player_id) for player_id in request.batter_ids),
+        pitcher_ids=tuple(str(player_id) for player_id in request.pitcher_ids),
     )
     processor = PlateAppearanceProcessor(SessionFactory)
     try:
@@ -95,3 +108,18 @@ def sync_live(request: LiveSyncRequest) -> LiveSyncReport:
         game_state=source.game_state,
         game_status=source.game_status,
     )
+
+
+@router.get(
+    "/live/games/{game_id}/participants",
+    response_model=GameParticipantsRead,
+)
+def get_live_game_participants(game_id: int) -> GameParticipantsRead:
+    """Discover game participants from MLB's live feed without persisting them."""
+    source = LiveSource(game_id=game_id)
+    try:
+        return source.discover_participants()
+    except LiveGameNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except LiveSourceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc

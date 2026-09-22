@@ -24,8 +24,8 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Taiwanese Baseball Player Watch",
         description=(
-            "Event monitoring for selected Taiwanese hitters: detects newly "
-            "completed plate appearances, evaluates watch rules, raises alerts."
+            "Event monitoring for selected batters and pitchers: detects newly "
+            "completed plate appearances, evaluates role-aware rules, raises alerts."
         ),
         version="0.1.0",
         lifespan=lifespan,

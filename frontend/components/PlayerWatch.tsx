@@ -6,6 +6,7 @@ function formatMeasurement(value: number | null, unit: string) {
 
 export function PlayerWatch({ player }: { player: PlayerWatchData }) {
   const latest = player.latestPlateAppearance;
+  const isPitcher = player.role === "pitcher";
 
   return (
     <div className="watch-layout">
@@ -13,7 +14,7 @@ export function PlayerWatch({ player }: { player: PlayerWatchData }) {
         <div className="watch-hero__identity">
           <div className="player-number" aria-hidden="true">{player.jerseyNumber}</div>
           <div>
-            <p className="section-kicker">Tracked hitter</p>
+            <p className="section-kicker">{isPitcher ? "Tracked pitcher" : "Tracked hitter"}</p>
             <h2>{player.name}</h2>
             <p>{player.team} · {player.opponent}</p>
           </div>
@@ -32,14 +33,14 @@ export function PlayerWatch({ player }: { player: PlayerWatchData }) {
         <div className="panel-heading">
           <div>
             <p className="section-kicker">Most recent event</p>
-            <h2 id="latest-pa-title">Latest Plate Appearance</h2>
+            <h2 id="latest-pa-title">{isPitcher ? "Latest Plate Appearance Faced" : "Latest Plate Appearance"}</h2>
           </div>
           <span className="inning-label">{latest.inning}</span>
         </div>
         <div className="result-callout">
           <span className="result-callout__mark">{latest.resultCode}</span>
           <div>
-            <strong>{latest.result}</strong>
+            <strong>{isPitcher ? `${latest.result} allowed` : latest.result}</strong>
             <p>{latest.description}</p>
           </div>
         </div>
@@ -57,8 +58,8 @@ export function PlayerWatch({ player }: { player: PlayerWatchData }) {
             <strong>{latest.pitchType}</strong>
           </div>
           <div>
-            <span>Pitcher</span>
-            <strong>{latest.pitcher}</strong>
+            <span>{isPitcher ? "Batter" : "Pitcher"}</span>
+            <strong>{isPitcher ? latest.batter : latest.pitcher}</strong>
           </div>
         </div>
       </section>
@@ -88,7 +89,7 @@ export function PlayerWatch({ player }: { player: PlayerWatchData }) {
         <div className="panel-heading">
           <div>
             <p className="section-kicker">Game log</p>
-            <h2 id="recent-pa-title">Recent Plate Appearances</h2>
+            <h2 id="recent-pa-title">{isPitcher ? "Recent Plate Appearances Faced" : "Recent Plate Appearances"}</h2>
           </div>
           <span className="panel-heading__meta">Today</span>
         </div>
@@ -97,8 +98,8 @@ export function PlayerWatch({ player }: { player: PlayerWatchData }) {
             <thead>
               <tr>
                 <th>Inning</th>
-                <th>Result</th>
-                <th>Pitcher</th>
+                <th>{isPitcher ? "Result allowed" : "Result"}</th>
+                <th>{isPitcher ? "Batter" : "Pitcher"}</th>
                 <th>Pitch</th>
                 <th>Pitch velo</th>
                 <th>Exit velo</th>
@@ -109,7 +110,7 @@ export function PlayerWatch({ player }: { player: PlayerWatchData }) {
                 <tr key={appearance.id}>
                   <td>{appearance.inning}</td>
                   <td><strong>{appearance.result}</strong></td>
-                  <td>{appearance.pitcher}</td>
+                  <td>{isPitcher ? appearance.batter : appearance.pitcher}</td>
                   <td><span className="pitch-pill">{appearance.pitchType}</span></td>
                   <td>{formatMeasurement(appearance.pitchVelocity, "")}</td>
                   <td>{formatMeasurement(appearance.exitVelocity, "")}</td>

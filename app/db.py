@@ -50,10 +50,13 @@ SessionFactory = sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
 
 def create_all(target_engine: Engine | None = None) -> None:
-    """Create the schema. Enough for an MVP; a real deployment wants migrations."""
+    """Create or upgrade the local schema."""
     from . import models  # noqa: F401  (import registers the mappers)
+    from .migrations import run_migrations
 
-    Base.metadata.create_all(target_engine or engine)
+    selected_engine = target_engine or engine
+    Base.metadata.create_all(selected_engine)
+    run_migrations(selected_engine)
 
 
 def get_session() -> Iterator[Session]:

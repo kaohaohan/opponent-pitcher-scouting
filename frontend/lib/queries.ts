@@ -6,6 +6,7 @@ import {
   generatePregameBrief,
   getAlerts,
   getEvents,
+  getGameParticipants,
   getPlayers,
   syncLive,
   type LiveSyncRequest,
@@ -20,15 +21,39 @@ export function usePlayers() {
   });
 }
 
-export function useEvents(playerId?: number, limit = 200, enabled = true, gameId?: string) {
+export function useEvents(
+  playerId?: number,
+  limit = 200,
+  enabled = true,
+  gameId?: string,
+  batterId?: number,
+  pitcherId?: number,
+) {
   return useQuery({
-    queryKey: ["events", playerId ?? "all", gameId ?? "all", limit],
-    queryFn: () => getEvents(playerId, limit, gameId),
+    queryKey: [
+      "events",
+      playerId ?? "all",
+      gameId ?? "all",
+      batterId ?? "all",
+      pitcherId ?? "all",
+      limit,
+    ],
+    queryFn: () => getEvents(playerId, limit, gameId, batterId, pitcherId),
     enabled: enabled && (playerId === undefined || playerId > 0),
     staleTime: 10 * 1000,
     refetchInterval: 15 * 1000,
     refetchIntervalInBackground: false,
     retry: 1,
+  });
+}
+
+export function useGameParticipants(gameId: number | null) {
+  return useQuery({
+    queryKey: ["live-game-participants", gameId ?? "idle"],
+    queryFn: () => getGameParticipants(gameId as number),
+    enabled: gameId !== null && gameId > 0,
+    staleTime: 10 * 1000,
+    retry: false,
   });
 }
 

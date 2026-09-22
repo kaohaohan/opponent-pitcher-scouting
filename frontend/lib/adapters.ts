@@ -1,5 +1,6 @@
 import type {
   AlertDto,
+  GameParticipantDto,
   PlateAppearanceDto,
   PlayerDto,
   PregameBriefResponseDto,
@@ -204,14 +205,41 @@ export function toPregameViewModel(response: PregameBriefResponseDto) {
   };
 }
 
-function toPlateAppearance(event: PlateAppearanceDto): PlateAppearanceData {
+export interface WatchSubject {
+  id: number;
+  name: string;
+  team: string;
+  role: "batter" | "pitcher";
+}
+
+export function subjectFromParticipant(
+  participant: GameParticipantDto,
+  role: "batter" | "pitcher",
+): WatchSubject {
+  return {
+    id: participant.player_id,
+    name: participant.name,
+    team: participant.team_name,
+    role,
+  };
+}
+
+function toPlateAppearance(
+  event: PlateAppearanceDto,
+  role: "batter" | "pitcher" = "batter",
+): PlateAppearanceData {
   const pitch = event.pitch_type ?? "—";
-  const description = `${event.result} against ${event.pitcher}.`;
+  const opponent = role === "pitcher" ? event.batter_name : event.pitcher_name;
+  const description =
+    role === "pitcher"
+      ? `${event.result} allowed to ${event.batter_name}.`
+      : `${event.result} against ${event.pitcher_name}.`;
   return {
     id: String(event.id),
     inning: `Inning ${event.inning}`,
-    opponent: "—",
-    pitcher: event.pitcher,
+    opponent,
+    pitcher: event.pitcher_name,
+    batter: event.batter_name,
     result: event.result,
     resultCode: resultCodes[event.result] ?? event.result.slice(0, 3).toUpperCase(),
     pitchType: pitch,
@@ -222,9 +250,10 @@ function toPlateAppearance(event: PlateAppearanceDto): PlateAppearanceData {
 }
 
 export function toPlayerWatchData(
-  player: PlayerDto,
+  player: PlayerDto | WatchSubject,
   events: PlateAppearanceDto[],
   alerts: AlertDto[],
+  role: "batter" | "pitcher" = "batter",
 ): PlayerWatchData | null {
   const completedEvents = events.filter((event) => event.is_complete);
   if (completedEvents.length === 0) return null;
@@ -232,6 +261,7 @@ export function toPlayerWatchData(
   const sortedEvents = [...completedEvents].sort((left, right) => right.id - left.id);
   const latest = sortedEvents[0];
   const recentAlerts = alerts.filter((alert) =>
+    alert.subject_role === role &&
     sortedEvents.some((event) => event.id === alert.plate_appearance_id),
   );
   const triggeredRules = recentAlerts
@@ -242,15 +272,16 @@ export function toPlayerWatchData(
     }));
 
   return {
+    role,
     name: player.name,
     jerseyNumber: "—",
     team: player.team,
     opponent: "—",
     gameState: `Latest recorded event · ${latest.game_id}`,
     todayLine: "—",
-    latestPlateAppearance: toPlateAppearance(latest),
+    latestPlateAppearance: toPlateAppearance(latest, role),
     triggeredRules,
-    recentPlateAppearances: sortedEvents.map(toPlateAppearance),
+    recentPlateAppearances: sortedEvents.map((event) => toPlateAppearance(event, role)),
   };
 }
 
@@ -258,6 +289,8 @@ const validRules = new Set<AlertData["rule"]>([
   "extra_base_hit",
   "hard_contact",
   "high_velocity_hit",
+  "pitcher_extra_base_hit_allowed",
+  "pitcher_high_exit_velocity_allowed",
 ]);
 
 function toAlertRule(ruleType: string): AlertData["rule"] {
@@ -294,17 +327,34 @@ export function toAlertData(
   const event = eventsById.get(alert.plate_appearance_id);
   const player = event ? playersById.get(event.player_id) : undefined;
   const rule = toAlertRule(alert.rule_type);
+  const subject =
+    alert.subject_role === "pitcher"
+      ? {
+          name: event?.pitcher_name ?? "Unknown pitcher",
+          team: event?.pitcher_team ?? "—",
+        }
+      : {
+          name: player?.name ?? event?.batter_name ?? "Unknown player",
+          team: player?.team ?? event?.batter_team ?? "—",
+        };
 
   return {
     id: String(alert.id),
-    player: player?.name ?? "Unknown player",
-    team: player?.team ?? "—",
+    player: subject.name,
+    team: subject.team,
+    subjectRole: alert.subject_role,
     event: event?.result ?? "Rule matched",
     detail: alert.message,
     gameMoment: event ? `Inning ${event.inning}` : "Recorded alert",
     timestamp: relativeTime(alert.created_at),
     rule,
-    severity: rule === "extra_base_hit" || rule === "hard_contact" ? "high" : "standard",
+    severity:
+      rule === "extra_base_hit" ||
+      rule === "hard_contact" ||
+      rule === "pitcher_extra_base_hit_allowed" ||
+      rule === "pitcher_high_exit_velocity_allowed"
+        ? "high"
+        : "standard",
   };
 }
 
@@ -315,7 +365,11 @@ export function toAlertsSummary(
   return {
     today: alerts.filter((alert) => isToday(alert.created_at)).length,
     highPriority: alerts.filter(
-      (alert) => alert.rule_type === "extra_base_hit" || alert.rule_type === "hard_contact",
+      (alert) =>
+        alert.rule_type === "extra_base_hit" ||
+        alert.rule_type === "hard_contact" ||
+        alert.rule_type === "pitcher_extra_base_hit_allowed" ||
+        alert.rule_type === "pitcher_high_exit_velocity_allowed",
     ).length,
     trackedPlayers: players.length,
   };
