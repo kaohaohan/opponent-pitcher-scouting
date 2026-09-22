@@ -367,7 +367,7 @@ select:focus-visible {
   align-items: start;
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(260px, 0.74fr) minmax(470px, 1.5fr) minmax(330px, 1fr);
+  grid-template-columns: minmax(230px, 0.58fr) minmax(440px, 1.15fr) minmax(420px, 1.3fr);
 }
 
 .pregame-center {
@@ -376,6 +376,7 @@ select:focus-visible {
 }
 
 .profile-panel {
+  background: var(--surface-soft);
   overflow: hidden;
 }
 
@@ -399,28 +400,12 @@ select:focus-visible {
   border-bottom: 1px solid var(--border);
   border-top: 1px solid var(--border);
   display: flex;
-  gap: 13px;
   margin: 0 18px;
-  padding: 15px 0;
-}
-
-.pitcher-avatar {
-  align-items: center;
-  background: #162532;
-  border: 1px solid #2b4355;
-  border-radius: 50%;
-  color: #b8d3e5;
-  display: flex;
-  font-size: 0.82rem;
-  font-weight: 800;
-  height: 46px;
-  justify-content: center;
-  letter-spacing: 0.04em;
-  width: 46px;
+  padding: 12px 0;
 }
 
 .pitcher-identity h3 {
-  font-size: 1.13rem;
+  font-size: 1rem;
   line-height: 1.2;
   margin: 0;
 }
@@ -433,19 +418,15 @@ select:focus-visible {
 
 .profile-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   margin: 0;
-  padding: 7px 18px 10px;
+  padding: 6px 18px 8px;
 }
 
 .profile-stats > div {
   border-bottom: 1px solid rgba(34, 48, 61, 0.68);
   min-width: 0;
   padding: 11px 6px 11px 0;
-}
-
-.profile-stats > div:nth-child(even) {
-  padding-left: 12px;
 }
 
 .profile-stats dt {
@@ -512,8 +493,8 @@ select:focus-visible {
 
 .pregame-controls {
   display: grid;
-  gap: 10px;
-  padding: 15px 18px 17px;
+  gap: 9px;
+  padding: 12px 18px 14px;
 }
 
 .field-label {
@@ -531,7 +512,7 @@ select:focus-visible {
   border-radius: 5px;
   color: var(--text);
   font-size: 0.78rem;
-  height: 38px;
+  height: 34px;
   min-width: 0;
   padding: 0 10px;
   width: 100%;
@@ -559,7 +540,7 @@ select:focus-visible {
   font-size: 0.78rem;
   font-weight: 780;
   gap: 7px;
-  height: 40px;
+  height: 36px;
   justify-content: center;
   margin-top: 2px;
 }
@@ -578,8 +559,7 @@ select:focus-visible {
   font-size: 0.68rem;
   line-height: 1.45;
   margin: -3px 0 0;
-  min-height: 2em;
-  text-align: center;
+  min-height: 1.4em;
 }
 
 .pitch-mix-panel {
@@ -877,29 +857,13 @@ select:focus-visible {
   color: var(--purple);
 }
 
-.ai-label {
-  align-items: center;
-  background: #2d2441;
-  border: 1px solid #4d3e6e;
-  border-radius: 4px;
-  color: #d2baf5;
-  display: inline-flex;
-  font-size: 0.68rem;
-  font-weight: 850;
-  height: 27px;
-  justify-content: center;
-  width: 31px;
-}
-
 .brief-boundary {
   align-items: start;
   background: #121823;
   border-bottom: 1px solid var(--border);
   border-top: 1px solid var(--border);
   color: var(--text-muted);
-  display: flex;
   font-size: 0.7rem;
-  gap: 9px;
   line-height: 1.45;
   padding: 12px 20px;
 }
@@ -908,25 +872,29 @@ select:focus-visible {
   margin: 0;
 }
 
-.brief-boundary__icon {
-  color: var(--purple);
-  font-size: 1rem;
-  line-height: 1.1;
-}
-
 .brief-sections {
-  padding: 0 20px;
+  display: grid;
+  gap: 14px;
+  padding: 16px 20px 20px;
 }
 
 .brief-section {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border);
+  border-radius: 6px;
   display: grid;
   gap: 12px;
   grid-template-columns: 24px 1fr;
-  padding: 18px 0;
+  padding: 16px;
 }
 
-.brief-section + .brief-section {
-  border-top: 1px solid var(--border);
+.brief-section[data-kind="analysis"] {
+  border-color: rgba(99, 169, 216, 0.28);
+}
+
+.brief-section[data-kind="limitation"] {
+  background: rgba(227, 182, 93, 0.06);
+  border-color: rgba(227, 182, 93, 0.24);
 }
 
 .brief-section__index {
@@ -938,14 +906,47 @@ select:focus-visible {
 
 .brief-section h3 {
   font-size: 0.8rem;
-  margin: 0 0 6px;
+  letter-spacing: 0.03em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
 }
 
-.brief-section p {
+.brief-markdown {
+  display: grid;
+  gap: 11px;
+}
+
+.brief-markdown h4 {
+  color: var(--text);
+  font-size: 0.82rem;
+  margin: 4px 0 0;
+}
+
+.brief-section p,
+.brief-list {
   color: #a8b3bd;
   font-size: 0.76rem;
   line-height: 1.62;
   margin: 0;
+}
+
+.brief-list {
+  display: grid;
+  gap: 7px;
+  padding-left: 18px;
+}
+
+.brief-list li::marker {
+  color: var(--blue);
+}
+
+.brief-list--limitations li::marker {
+  color: var(--amber);
+}
+
+.brief-section strong {
+  color: var(--text);
+  font-weight: 720;
 }
 
 .brief-section[data-kind="limitation"] h3,
@@ -1364,17 +1365,7 @@ select:focus-visible {
   }
 
   .brief-sections {
-    display: grid;
     grid-template-columns: 1fr 1fr;
-  }
-
-  .brief-section:nth-child(even) {
-    border-left: 1px solid var(--border);
-    padding-left: 20px;
-  }
-
-  .brief-section:nth-child(2) {
-    border-top: 0;
   }
 }
 

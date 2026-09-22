@@ -34,6 +34,8 @@ export function PregameDashboard({
   onRetry,
   onGenerate,
 }: PregameDashboardProps) {
+  const hasGeneratedProfile = pitcher.id !== null && pitcher.startDate !== "" && pitcher.endDate !== "";
+
   return (
     <div className="pregame-grid">
       <section className="panel profile-panel" aria-labelledby="pitcher-profile-title">
@@ -46,45 +48,39 @@ export function PregameDashboard({
         </div>
 
         <div className="pitcher-identity">
-          <div className="pitcher-avatar" aria-hidden="true">
-            {pitcher.name === "Choose a pitcher"
-              ? "—"
-              : pitcher.name
-              .split(" ")
-              .map((part) => part[0])
-              .join("")}
-          </div>
           <div>
             <h3>{pitcher.name}</h3>
-            <p>{pitcher.team}</p>
+            {pitcher.team === "—" ? null : <p>{pitcher.team}</p>}
           </div>
         </div>
 
-        <dl className="profile-stats">
-          <div>
-            <dt>Date range</dt>
-            <dd>
-              {pitcher.dateRangeShortLabel}
-            </dd>
-          </div>
-          <div>
-            <dt>Total pitches</dt>
-            <dd>{pitcher.totalPitches.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>Avg velocity</dt>
-            <dd>
-              {pitcher.averageVelocity === null ? "—" : pitcher.averageVelocity.toFixed(1)}
-              {pitcher.averageVelocity === null ? null : <span> mph</span>}
-            </dd>
-          </div>
-          <div>
-            <dt>Sample quality</dt>
-            <dd>
-              <SampleSizeBadge status={pitcher.overallStatus} />
-            </dd>
-          </div>
-        </dl>
+        {hasGeneratedProfile ? (
+          <dl className="profile-stats">
+            <div>
+              <dt>Date range</dt>
+              <dd>{pitcher.dateRangeShortLabel}</dd>
+            </div>
+            <div>
+              <dt>Total pitches</dt>
+              <dd>{pitcher.totalPitches.toLocaleString()}</dd>
+            </div>
+            {pitcher.averageVelocity === null ? null : (
+              <div>
+                <dt>Avg velocity</dt>
+                <dd>
+                  {pitcher.averageVelocity.toFixed(1)}
+                  <span> mph</span>
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt>Sample quality</dt>
+              <dd>
+                <SampleSizeBadge status={pitcher.overallStatus} />
+              </dd>
+            </div>
+          </dl>
+        ) : null}
 
         <div className="panel-divider" />
         <PregameControls

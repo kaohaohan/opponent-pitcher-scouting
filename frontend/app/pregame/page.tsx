@@ -14,12 +14,6 @@ export default function PregamePage() {
       eyebrow="Game preparation / Pitcher intelligence"
       title="Pregame"
       description="Review pitch usage, count-specific patterns, and evidence-aware briefing notes."
-      meta={
-        <>
-          <span className="data-window-label">Data window</span>
-          <strong>Select below</strong>
-        </>
-      }
     >
       <PregamePageClient />
     </AppShell>

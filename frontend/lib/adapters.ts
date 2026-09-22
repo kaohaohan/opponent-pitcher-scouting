@@ -150,7 +150,7 @@ function toBriefSections(response: PregameBriefResponseDto): BriefSectionData[] 
 function toPitcherProfile(context: PregameContextDto): PitcherProfileData {
   return {
     id: context.pitcher_id,
-    name: `Pitcher #${context.pitcher_id}`,
+    name: `Pitcher ID ${context.pitcher_id}`,
     throws: "—",
     team: "—",
     startDate: context.start_date,
