@@ -8,12 +8,13 @@ import json
 import logging
 from collections.abc import Iterator
 
+import httpx
 import pytest
 from sqlalchemy import func, select
 
 from app.models import PlateAppearance
 from app.processing import ProcessOutcome
-from app.sources import LiveSource, PlateAppearanceSource, ReplaySource
+from app.sources import LiveFeedError, LiveSource, PlateAppearanceSource, ReplaySource
 from app.sources.base import RawEvent
 from tests.conftest import make_raw_event
 
@@ -88,12 +89,13 @@ def test_a_successful_replay_reports_no_source_error(processor, fixture_path):
     assert processor.process_source(ReplaySource(fixture_path)).source_error is None
 
 
-def test_unimplemented_source_raises_rather_than_being_reported_as_a_feed_failure(
+def test_live_feed_error_can_be_propagated_for_http_translation(
     processor,
 ):
-    # NotImplementedError is a code gap, not an upstream outage; it must surface.
-    with pytest.raises(NotImplementedError):
-        processor.process_source(LiveSource(game_id="2025-08-14-WSH-PHI"))
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(503)))
+    source = LiveSource(game_id=776743, watched_player_ids=("657557",), client=client)
+    with pytest.raises(LiveFeedError):
+        processor.process_source(source, propagate_source_errors=True)
 
 
 def test_malformed_fixture_is_reported_as_a_source_error(processor, tmp_path):

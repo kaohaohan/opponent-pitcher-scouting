@@ -118,3 +118,21 @@ class ReplayReport(BaseModel):
     #: Set when the source itself failed part-way through. Events already ingested
     #: before the failure are kept and counted above.
     source_error: str | None = None
+
+
+class LiveSyncRequest(BaseModel):
+    game_id: int = Field(gt=0)
+    watched_player_ids: list[int] = Field(min_length=1)
+
+    @field_validator("watched_player_ids")
+    @classmethod
+    def _positive_ids(cls, value: list[int]) -> list[int]:
+        if any(player_id <= 0 for player_id in value):
+            raise ValueError("watched_player_ids must contain positive integers")
+        return list(dict.fromkeys(value))
+
+
+class LiveSyncReport(ReplayReport):
+    game_id: str
+    game_state: str | None = None
+    game_status: str | None = None

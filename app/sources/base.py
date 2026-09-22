@@ -3,7 +3,7 @@
 A source's only job is to yield plate-appearance events already shaped like
 `app.schemas.PlateAppearanceEvent`. Everything feed-specific — HTTP calls,
 polling, MLB's field names, unit conversions — stays behind this interface, so
-`ReplaySource` and a future `LiveSource` are interchangeable from the
+`ReplaySource` and `LiveSource` are interchangeable from the
 processor's point of view.
 
 Sources deliberately emit plain mappings rather than validated models: the
@@ -35,8 +35,8 @@ class PlateAppearanceSource(ABC):
     def events(self) -> Iterator[RawEvent]:
         """Yield events oldest-first.
 
-        A replay source is finite. A live source may block between events and
-        need not terminate.
+    Sources may be finite (including a one-shot live snapshot) or may block
+    between events; the processor treats both forms identically.
         """
 
     def __iter__(self) -> Iterator[RawEvent]:

@@ -12,8 +12,15 @@ from sqlalchemy.orm import Session
 from .. import repository
 from ..db import SessionFactory, get_session
 from ..processing import PlateAppearanceProcessor
-from ..schemas import AlertRead, PlateAppearanceRead, PlayerRead, ReplayReport
-from ..sources import ReplaySource
+from ..schemas import (
+    AlertRead,
+    LiveSyncReport,
+    LiveSyncRequest,
+    PlateAppearanceRead,
+    PlayerRead,
+    ReplayReport,
+)
+from ..sources import LiveGameNotFound, LiveSource, LiveSourceError, ReplaySource
 
 router = APIRouter(prefix="/api", tags=["watch"])
 
@@ -66,3 +73,25 @@ def trigger_replay(fixture_path: str | None = None) -> ReplayReport:
         )
     processor = PlateAppearanceProcessor(SessionFactory)
     return processor.process_source(source)
+
+
+@router.post("/live/sync", response_model=LiveSyncReport)
+def sync_live(request: LiveSyncRequest) -> LiveSyncReport:
+    """Fetch one MLB snapshot and ingest completed PAs for watched players."""
+    source = LiveSource(
+        game_id=request.game_id,
+        watched_player_ids=tuple(str(player_id) for player_id in request.watched_player_ids),
+    )
+    processor = PlateAppearanceProcessor(SessionFactory)
+    try:
+        report = processor.process_source(source, propagate_source_errors=True)
+    except LiveGameNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except LiveSourceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return LiveSyncReport(
+        **report.model_dump(),
+        game_id=source.game_id,
+        game_state=source.game_state,
+        game_status=source.game_status,
+    )

@@ -1,0 +1,50 @@
+{
+  "gamePk": 776743,
+  "gameData": {
+    "status": {"abstractGameState": "Live", "detailedState": "In Progress"},
+    "teams": {
+      "away": {"name": "Chicago White Sox"},
+      "home": {"name": "Los Angeles Angels"}
+    }
+  },
+  "liveData": {
+    "plays": {
+      "allPlays": [
+        {
+          "about": {"atBatIndex": 4, "inning": 2, "isTopInning": true, "isComplete": true},
+          "matchup": {"batter": {"id": 657557, "fullName": "Paul DeJong"}, "pitcher": {"fullName": "Tyler Anderson"}},
+          "result": {"event": "Home Run"},
+          "playEvents": [
+            {"isPitch": false, "details": {"description": "mound visit"}},
+            {"isPitch": true, "details": {"type": {"description": "Four-Seam Fastball"}}, "pitchData": {"startSpeed": 91.2}},
+            {"isPitch": true, "details": {"type": {"description": "Slider"}}, "pitchData": {"startSpeed": 87.5}, "hitData": {"launchSpeed": 104.3, "launchAngle": 27.0}}
+          ]
+        },
+        {
+          "about": {"atBatIndex": 5, "inning": 2, "isTopInning": true, "isComplete": false},
+          "matchup": {"batter": {"id": 657557, "fullName": "Paul DeJong"}, "pitcher": {"fullName": "Tyler Anderson"}},
+          "result": {"event": ""},
+          "playEvents": []
+        },
+        {
+          "about": {"atBatIndex": 6, "inning": 2, "isTopInning": false, "isComplete": true},
+          "matchup": {"batter": {"id": 123456, "fullName": "Unrelated Batter"}, "pitcher": {"fullName": "Tyler Anderson"}},
+          "result": {"event": "Single"},
+          "playEvents": []
+        },
+        {
+          "about": {"atBatIndex": 7, "inning": 3, "isTopInning": false, "isComplete": true},
+          "matchup": {"batter": {"id": 657557, "fullName": "Paul DeJong"}, "pitcher": {"fullName": "Tyler Anderson"}},
+          "result": {"event": "Flyout"},
+          "playEvents": []
+        },
+        {
+          "about": {"atBatIndex": 8, "inning": 3, "isTopInning": true, "isComplete": true},
+          "matchup": {"batter": {"id": 657557}, "pitcher": {}},
+          "result": {},
+          "playEvents": []
+        }
+      ]
+    }
+  }
+}

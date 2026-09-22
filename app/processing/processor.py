@@ -103,7 +103,9 @@ class PlateAppearanceProcessor:
             alerts=tuple(matches),
         )
 
-    def process_source(self, source: PlateAppearanceSource) -> ReplayReport:
+    def process_source(
+        self, source: PlateAppearanceSource, *, propagate_source_errors: bool = False
+    ) -> ReplayReport:
         """Drain a source sequentially and summarize what happened.
 
         A source that fails part-way through — a live feed losing its connection,
@@ -112,8 +114,10 @@ class PlateAppearanceProcessor:
         failure cannot roll back or corrupt earlier plate appearances. The error is
         logged and reported in `source_error` rather than swallowed.
 
-        `NotImplementedError` is deliberately not caught: that is unimplemented
-        code, not an upstream failure, and it should reach the caller.
+        By default source failures are reported in `source_error`, preserving
+        replay's historical behavior. Callers such as the live HTTP endpoint
+        may set `propagate_source_errors=True` to translate typed upstream
+        failures into transport responses.
         """
         results: list[ProcessResult] = []
         source_error: str | None = None
@@ -124,6 +128,8 @@ class PlateAppearanceProcessor:
             raise
         except Exception as exc:
             logger.exception("Source %r could not be opened", source.name)
+            if propagate_source_errors:
+                raise
             return _summarize(source.name, results, _describe(exc))
 
         while True:
@@ -140,6 +146,8 @@ class PlateAppearanceProcessor:
                     len(results),
                 )
                 source_error = _describe(exc)
+                if propagate_source_errors:
+                    raise
                 break
             results.append(self.process_event(raw_event))
 

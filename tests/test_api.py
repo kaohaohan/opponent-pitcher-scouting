@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
+from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -11,6 +14,7 @@ from app import main
 from app.api import routes
 from app.db import get_session
 from app.main import create_app
+from app.sources import LiveSource
 
 
 @pytest.fixture()
@@ -111,3 +115,37 @@ def test_replay_endpoint_reports_a_missing_fixture(client):
 
 def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_live_sync_endpoint_ingests_and_deduplicates_snapshot(client, monkeypatch):
+    fixture = Path(__file__).parent / "fixtures" / "mlb_live_feed_776743_20250814_230000.json"
+    payload = json.loads(fixture.read_text(encoding="utf-8"))
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+
+    def source_factory(game_id, watched_player_ids):
+        return LiveSource(game_id, watched_player_ids, client=httpx.Client(transport=transport))
+
+    monkeypatch.setattr(routes, "LiveSource", source_factory)
+    response = client.post(
+        "/api/live/sync", json={"game_id": 776743, "watched_player_ids": [657557]}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["events_read"] == 3
+    assert response.json()["stored"] == 2
+    assert response.json()["invalid"] == 1
+    assert response.json()["game_state"] == "Live"
+
+    second = client.post(
+        "/api/live/sync", json={"game_id": 776743, "watched_player_ids": [657557, 657557]}
+    )
+    assert second.status_code == 200
+    assert second.json()["stored"] == 0
+    assert second.json()["duplicates"] == 2
+    assert len(client.get("/api/events?game_id=776743").json()) == 2
+
+
+def test_live_sync_validates_request_before_fetch(client):
+    response = client.post("/api/live/sync", json={"game_id": 0, "watched_player_ids": []})
+
+    assert response.status_code == 422

@@ -955,6 +955,65 @@ select:focus-visible {
 }
 
 /* Player watch */
+.live-controls {
+  margin-bottom: 18px;
+}
+
+.live-controls__grid {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(240px, 1.3fr) auto;
+}
+
+.field-label,
+.player-selector {
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 6px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.field-label input,
+.player-selector select {
+  background: var(--surface-soft);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  color: var(--text);
+  min-height: 38px;
+  padding: 7px 10px;
+}
+
+.primary-button {
+  background: var(--green);
+  border: 1px solid #7bd8a6;
+  border-radius: 5px;
+  color: #07110c;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+  min-height: 38px;
+  padding: 0 16px;
+}
+
+.live-control-status {
+  color: var(--text-dim);
+  font-size: 0.74rem;
+}
+
+.live-control-status.is-active {
+  color: var(--green);
+}
+
+.player-selector {
+  margin: 0 0 18px;
+  max-width: 360px;
+}
+
 .watch-layout {
   display: grid;
   gap: 16px;

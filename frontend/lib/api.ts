@@ -20,6 +20,25 @@ export interface PlateAppearanceDto {
   is_complete: boolean;
 }
 
+export interface LiveSyncRequest {
+  game_id: number;
+  watched_player_ids: number[];
+}
+
+export interface LiveSyncReport {
+  source: "live";
+  game_id: string;
+  game_state: string | null;
+  game_status: string | null;
+  events_read: number;
+  stored: number;
+  duplicates: number;
+  ignored_incomplete: number;
+  invalid: number;
+  alerts_created: number;
+  source_error: string | null;
+}
+
 export interface AlertDto {
   id: number;
   plate_appearance_id: number;
@@ -111,10 +130,18 @@ export function getPlayers(): Promise<PlayerDto[]> {
   return fetchJson<PlayerDto[]>("/api/players");
 }
 
-export function getEvents(playerId?: number, limit = 200): Promise<PlateAppearanceDto[]> {
+export function getEvents(playerId?: number, limit = 200, gameId?: string): Promise<PlateAppearanceDto[]> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (playerId !== undefined) params.set("player_id", String(playerId));
+  if (gameId) params.set("game_id", gameId);
   return fetchJson<PlateAppearanceDto[]>(`/api/events?${params.toString()}`);
+}
+
+export function syncLive(request: LiveSyncRequest): Promise<LiveSyncReport> {
+  return fetchJson<LiveSyncReport>("/api/live/sync", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
 }
 
 export function getAlerts(limit = 200): Promise<AlertDto[]> {

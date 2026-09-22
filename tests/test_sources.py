@@ -1,9 +1,10 @@
-"""Source contract: sequential replay, normalized output, live stub."""
+"""Source contract: sequential replay and live normalization."""
 
 from __future__ import annotations
 
 import json
 
+import httpx
 import pytest
 
 from app.processing import ProcessOutcome
@@ -46,11 +47,12 @@ def test_replay_source_from_default_fixture_points_at_a_real_file():
     assert ReplaySource.from_default_fixture().fixture_path.is_file()
 
 
-def test_live_source_conforms_to_the_interface_but_is_not_implemented():
-    source = LiveSource(game_id="2025-08-14-WSH-PHI", watched_player_ids=("mock-696285",))
+def test_live_source_conforms_to_the_interface_and_surfaces_feed_errors():
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(503)))
+    source = LiveSource(game_id=776743, watched_player_ids=("657557",), client=client)
 
     assert isinstance(source, PlateAppearanceSource)
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(Exception, match="HTTP 503"):
         list(source.events())
 
 

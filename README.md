@@ -321,3 +321,55 @@ adjustment detection, next-pitch prediction, ML models, hitter-vs-pitcher
 matchup modeling, handedness splits, heatmaps, bat tracking, RAG, vector
 databases, autonomous agents, WebSockets, multiple LLM providers, and an
 OpenAI integration.
+
+## Phase 3: MLB live feed
+
+Player Watch can now synchronize one MLB game snapshot with:
+
+```http
+POST /api/live/sync
+Content-Type: application/json
+
+{"game_id": 776743, "watched_player_ids": [657557, 607208]}
+```
+
+`game_id` and watched IDs are positive integers. The response reports the MLB
+game state/status plus the same ingestion counters as replay (`stored`,
+`duplicates`, `invalid`, and `alerts_created`). A nonexistent game returns
+`404`; validation failures return `422`; MLB timeouts, non-404 HTTP failures,
+invalid JSON, and unusable feed schemas return `502`.
+
+The live adapter fetches `https://statsapi.mlb.com/api/v1.1/game/{game_id}/feed/live`
+once per request, traverses completed plays oldest-first, and emits only watched
+batters. MLB values map into the shared `PlateAppearanceEvent` contract:
+
+| Normalized field | MLB field |
+| --- | --- |
+| `external_player_id`, `player_name` | `matchup.batter.id`, `matchup.batter.fullName` |
+| `team` | `gameData.teams.away/home.name` by `about.isTopInning` |
+| `at_bat_index`, `inning`, `result`, `is_complete` | `about.atBatIndex`, `about.inning`, `result.event`, `about.isComplete` |
+| `pitcher` | `matchup.pitcher.fullName` |
+| pitch/Statcast fields | terminal `playEvents[]` item with `isPitch: true` |
+
+Missing measurements remain `null`, never zero. Malformed individual watched
+plays are allowed to reach the processor for validation; a play that cannot be
+attributed to a watched batter is skipped. Feed-level errors abort that sync
+before ingestion. The existing SQLite unique key on `(game_id, at_bat_index)`
+and `ON CONFLICT DO NOTHING` make repeated synchronization safe and prevent
+duplicate alerts.
+
+Polling belongs to the browser, not the backend. Player Watch performs an
+immediate sync and schedules the next one 20 seconds after the prior request
+completes, invalidating the existing players/events/alerts queries after each
+successful sync. It stops on a final game, validation error, or 404, retries
+transient `502` failures on the next interval, and stops when the page unmounts.
+Monitoring is intentionally request-driven and is not an unattended worker;
+watchlists are not persisted. Full-game rescanning is accepted for this MVP.
+
+For a real smoke test, start the app with a fresh SQLite database, open Player
+Watch, enter game `776743` and player `657557` (Paul DeJong), then start
+monitoring. Verify `/api/players`, `/api/events?game_id=776743`, and
+`/api/alerts`; repeat the POST and confirm `stored` is zero, duplicate counts
+increase, and database rows/alerts do not. The automated tests use the trimmed
+historical snapshot in `tests/fixtures/mlb_live_feed_776743_20250814_230000.json`
+and never contact MLB.
