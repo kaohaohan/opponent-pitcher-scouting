@@ -1,35 +1,26 @@
 # Opponent Pitcher Scouting
 
 [![CI](https://github.com/kaohaohan/taiwanese-baseball-watch/actions/workflows/ci.yml/badge.svg)](https://github.com/kaohaohan/taiwanese-baseball-watch/actions/workflows/ci.yml)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-taiwanese--baseball--watch.vercel.app-2ea44f)](https://taiwanese-baseball-watch.vercel.app)
 
-A game-preparation tool for hitters and hitting staff that builds an opposing
-pitcher's pregame Statcast baseline, monitors his live approach, and explains
-meaningful deviations during the game.
-
-**Live Demo:** <https://taiwanese-baseball-watch.vercel.app>
-Backend API docs: <https://taiwanese-baseball-watch-production.up.railway.app/docs>
-
-**Try it:**
-
-1. Open Pregame and search a pitcher (e.g. "Gausman").
-2. Generate Brief — Statcast pitch mix, count tendencies, and the Gemini
-   scouting brief load together.
-3. Optionally, go to Player Watch, pick a date with completed MLB games, and
-   watch a pitcher against that game's plate appearances.
-
-## Demo / Screenshots
-
-### Pregame scouting
+A game-preparation tool that builds an opposing pitcher's pregame Statcast
+baseline, monitors his live approach, and flags meaningful deviations during
+the game — deterministic stats first, Gemini for narration only.
 
 ![Opponent Pitcher Scouting — pregame brief](docs/images/pregame-scouting.png)
 
-Pitcher profile, pitch mix, and count tendencies, with the Gemini scouting brief generated from that same structured data.
+**[Try the live demo →](https://taiwanese-baseball-watch.vercel.app)**
+Search a pitcher on Pregame, hit **Generate Brief**, then check Player Watch
+for a completed game.
 
-### Live pitcher monitoring
+<details>
+<summary>Live pitcher monitoring screenshot</summary>
 
 ![Live Pitcher Watch — baseline vs. live](docs/images/live-pitcher-watch.png)
 
 A watched pitcher's live plate appearances as they happen, tracked against his pregame baseline.
+
+</details>
 
 ## Core workflow
 
@@ -52,7 +43,8 @@ pitcher's live pitch mix is continuously compared back against his pregame
 baseline — with Gemini narrating only the deviations the backend already
 flagged as notable.
 
-## Architecture
+<details>
+<summary><strong>Architecture</strong> (click to expand diagram)</summary>
 
 ```mermaid
 flowchart TB
@@ -114,7 +106,10 @@ MLB Stats API, Statcast, or SQLite, and never writes to them. Deterministic
 statistics, comparisons, and alerting remain available independently of
 Gemini.
 
-## Engineering highlights
+</details>
+
+<details>
+<summary><strong>Engineering highlights</strong></summary>
 
 - DB-backed idempotent ingestion — `UNIQUE(game_id, at_bat_index)` with
   `INSERT ... ON CONFLICT DO NOTHING RETURNING id`, so replaying or
@@ -136,6 +131,8 @@ Gemini.
 - Testable external-service boundaries — MLB, Statcast, and Gemini are all
   behind small interfaces with fakes used throughout the test suite
 
+</details>
+
 ## Tech stack
 
 **Frontend:** Next.js · React · TypeScript · TanStack Query
@@ -144,7 +141,9 @@ Gemini.
 
 **Data / integrations:** MLB Stats API · Baseball Savant / Statcast · Gemini API
 
-## Local setup
+<details>
+<summary><strong>Local setup</strong> (run it yourself)</summary>
+
 
 Requires Python 3.12 and Node 22.
 
@@ -222,7 +221,10 @@ A production deployment would move persistence to PostgreSQL and run the
 backend on a platform with a managed database, as noted in Design decision B
 below.
 
-## Design decisions
+</details>
+
+<details>
+<summary><strong>Design decisions</strong></summary>
 
 **A. Deterministic stats are separate from Gemini.** Every statistic, delta,
 and sample-size flag is computed by plain Python before any LLM call, so the
@@ -250,6 +252,8 @@ rarely-thrown pitch type) isn't a reliable signal; low-sample rows stay
 visible but are flagged `insufficient_sample` instead of being dropped or
 silently trusted.
 
+</details>
+
 ## Testing
 
 Local verification, all currently passing:
@@ -275,11 +279,8 @@ CI runs the same checks on every push and pull request via
 
 ---
 
-## Reference
-
-Deeper implementation notes — API surface, watch rules, and the
-per-phase design writeups — live below for engineers who want to dig further;
-skip this if you've seen enough above.
+<details>
+<summary><strong>Reference</strong> — API surface, watch rules, per-phase design writeups (for engineers who want to dig further)</summary>
 
 ### API
 
@@ -365,3 +366,5 @@ frontend/
 intentionally separated. Pregame builds the historical Statcast baseline
 without touching `watch.db`, while comparison combines that baseline with the
 current MLB live-feed snapshot without modifying either source.
+
+</details>
