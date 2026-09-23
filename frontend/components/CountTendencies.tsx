@@ -6,11 +6,17 @@ import { DataState } from "@/components/DataState";
 import { SampleSizeBadge } from "@/components/SampleSizeBadge";
 import type { CountBucketData } from "@/lib/types";
 
-export function CountTendencies({ buckets }: { buckets: CountBucketData[] }) {
+export function CountTendencies({
+  buckets,
+  isLoading = false,
+}: {
+  buckets: CountBucketData[];
+  isLoading?: boolean;
+}) {
   const [selectedId, setSelectedId] = useState(buckets[0]?.id ?? "");
   const selected = buckets.find((bucket) => bucket.id === selectedId) ?? buckets[0];
 
-  if (!selected) {
+  if (isLoading || !selected) {
     return (
       <section className="panel count-panel" aria-labelledby="count-tendencies-title">
         <div className="panel-heading">
@@ -20,7 +26,11 @@ export function CountTendencies({ buckets }: { buckets: CountBucketData[] }) {
           </div>
           <span className="panel-heading__meta">Select count</span>
         </div>
-        <DataState>Generate a brief to load count-specific tendencies.</DataState>
+        {isLoading ? (
+          <DataState kind="loading">Computing count-specific tendencies…</DataState>
+        ) : (
+          <DataState>Generate a brief to load count-specific tendencies.</DataState>
+        )}
       </section>
     );
   }

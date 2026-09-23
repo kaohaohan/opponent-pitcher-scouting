@@ -228,7 +228,9 @@ export function PregameControls({
         </label>
       </div>
       <button className="primary-button" disabled={isGenerating} type="submit">
-        <span aria-hidden="true">↻</span>
+        <span aria-hidden="true" data-spinning={isGenerating}>
+          ↻
+        </span>
         {isGenerating ? "Generating…" : "Generate brief"}
       </button>
       <p className="control-status" aria-live="polite">

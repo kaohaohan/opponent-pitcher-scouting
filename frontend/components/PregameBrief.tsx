@@ -90,7 +90,13 @@ function limitationItems(text: string): string[] {
     .filter(Boolean);
 }
 
-export function PregameBrief({ sections }: { sections: BriefSectionData[] }) {
+export function PregameBrief({
+  sections,
+  isLoading = false,
+}: {
+  sections: BriefSectionData[];
+  isLoading?: boolean;
+}) {
   return (
     <aside className="panel brief-panel" aria-labelledby="brief-title">
       <div className="panel-heading brief-heading">
@@ -107,7 +113,9 @@ export function PregameBrief({ sections }: { sections: BriefSectionData[] }) {
         </p>
       </div>
 
-      {sections.length === 0 ? (
+      {isLoading ? (
+        <DataState kind="loading">Asking Gemini to write the scouting brief…</DataState>
+      ) : sections.length === 0 ? (
         <DataState>Generate a brief to see the backend analysis.</DataState>
       ) : (
         <div className="brief-sections">

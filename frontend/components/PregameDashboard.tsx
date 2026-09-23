@@ -115,11 +115,11 @@ export function PregameDashboard({
       </section>
 
       <div className="pregame-center">
-        <PitchMix pitches={pitches} />
-        <CountTendencies buckets={counts} />
+        <PitchMix pitches={pitches} isLoading={isLoading} />
+        <CountTendencies buckets={counts} isLoading={isLoading} />
       </div>
 
-      <PregameBrief sections={brief} />
+      <PregameBrief sections={brief} isLoading={isLoading} />
       {error ? <DataState kind="error" onRetry={onRetry}>{error}</DataState> : null}
     </div>
   );

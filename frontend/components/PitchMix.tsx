@@ -2,7 +2,13 @@ import { SampleSizeBadge } from "@/components/SampleSizeBadge";
 import { DataState } from "@/components/DataState";
 import type { PitchUsageData } from "@/lib/types";
 
-export function PitchMix({ pitches }: { pitches: PitchUsageData[] }) {
+export function PitchMix({
+  pitches,
+  isLoading = false,
+}: {
+  pitches: PitchUsageData[];
+  isLoading?: boolean;
+}) {
   return (
     <section className="panel pitch-mix-panel" aria-labelledby="pitch-mix-title">
       <div className="panel-heading">
@@ -13,7 +19,9 @@ export function PitchMix({ pitches }: { pitches: PitchUsageData[] }) {
         <span className="panel-heading__meta">Tracked pitches</span>
       </div>
 
-      {pitches.length === 0 ? (
+      {isLoading ? (
+        <DataState kind="loading">Fetching Statcast pitch usage…</DataState>
+      ) : pitches.length === 0 ? (
         <DataState>Generate a brief to load pitch usage.</DataState>
       ) : (
         <div className="pitch-list">
