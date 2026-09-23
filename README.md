@@ -6,6 +6,17 @@ A game-preparation tool for hitters and hitting staff that builds an opposing
 pitcher's pregame Statcast baseline, monitors his live approach, and explains
 meaningful deviations during the game.
 
+**Live Demo:** <https://taiwanese-baseball-watch.vercel.app>
+Backend API docs: <https://taiwanese-baseball-watch-production.up.railway.app/docs>
+
+**Try it:**
+
+1. Open Pregame and search a pitcher (e.g. "Gausman").
+2. Generate Brief — Statcast pitch mix, count tendencies, and the Gemini
+   scouting brief load together.
+3. Optionally, go to Player Watch, pick a date with completed MLB games, and
+   watch a pitcher against that game's plate appearances.
+
 ## Demo / Screenshots
 
 ### Pregame scouting
@@ -162,6 +173,55 @@ Open <http://localhost:3000> (redirects to `/pregame`). The dashboard talks
 to FastAPI through a same-origin Next.js rewrite (`/backend/api/...` →
 `FASTAPI_BASE_URL`, defaulting to `http://127.0.0.1:8000`).
 
+## Deployment
+
+The live demo runs on Vercel + Railway, deployed from `main`:
+
+```
+Browser → Vercel (Next.js, root: frontend/)
+            │ /backend/:path* rewrite → FASTAPI_BASE_URL
+            ▼
+          Railway (FastAPI, uvicorn, 1 replica)
+            ├─ MLB Stats API
+            ├─ Baseball Savant / Statcast
+            ├─ Gemini API (backend-only key)
+            ▼
+          Railway Volume /data → SQLite (watch.db)
+```
+
+**Backend (Railway)** — start command, and required env vars:
+
+```
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | `sqlite:////data/watch.db` |
+| `GEMINI_API_KEY` | (secret, backend-only) |
+| `RAILPACK_PYTHON_VERSION` | `3.12` |
+
+A persistent volume is mounted at `/data` so the SQLite file survives
+redeploys. Single replica only — SQLite doesn't support concurrent writers
+across instances.
+
+**Frontend (Vercel)** — root directory `frontend`, production branch `main`,
+one env var:
+
+| Variable | Value |
+| --- | --- |
+| `FASTAPI_BASE_URL` | the Railway backend's public URL |
+
+No `NEXT_PUBLIC_*` variable is used, and the Gemini key is never set on
+Vercel — the browser only ever calls the same-origin `/backend/*` rewrite, so
+the Railway URL and the Gemini key both stay server-side.
+
+**Portfolio/demo limitation:** SQLite on a single Railway volume is
+appropriate for this low-traffic demo, not multi-instance production scale.
+A production deployment would move persistence to PostgreSQL and run the
+backend on a platform with a managed database, as noted in Design decision B
+below.
+
 ## Design decisions
 
 **A. Deterministic stats are separate from Gemini.** Every statistic, delta,
@@ -204,10 +264,10 @@ CI runs the same checks on every push and pull request via
 
 ## Known limitations
 
-- SQLite is appropriate for local/demo use, not multi-worker production writes
+- SQLite (on a single Railway volume in the live demo) is appropriate for
+  local/demo use, not multi-worker production writes
 - Client-driven live polling stops when no client session is active
 - No authentication
-- No production deployment yet
 - Statcast data is fetched on demand; no persistent caching layer
 - Scouting outputs are descriptive, not predictive
 - Gemini interpretation can fail independently; deterministic numeric output
