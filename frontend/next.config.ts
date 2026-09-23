@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   agentRules: false,
   reactStrictMode: true,
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   async rewrites() {
     const fastApiBaseUrl = process.env.FASTAPI_BASE_URL ?? "http://127.0.0.1:8000";
 
