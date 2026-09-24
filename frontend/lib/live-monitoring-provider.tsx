@@ -20,7 +20,6 @@ const SYNC_INTERVAL_MS = 20_000;
 interface StoredSession {
   version: 1;
   gameId: number | null;
-  selectedBatterIds: number[];
   selectedPitcherIds: number[];
 }
 
@@ -42,7 +41,6 @@ function readStoredSession(): StoredSession | null {
     return {
       version: 1,
       gameId,
-      selectedBatterIds: isIdArray(parsed.selectedBatterIds) ? parsed.selectedBatterIds : [],
       selectedPitcherIds: isIdArray(parsed.selectedPitcherIds) ? parsed.selectedPitcherIds : [],
     };
   } catch {
@@ -65,7 +63,6 @@ function errorMessage(error: unknown): string {
 
 interface LiveMonitoringContextValue {
   gameId: number | null;
-  selectedBatterIds: number[];
   selectedPitcherIds: number[];
   isMonitoring: boolean;
   isSyncing: boolean;
@@ -97,11 +94,10 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
   // rather than in these initializers — otherwise React throws a hydration
   // mismatch on the first paint.
   const [gameId, setGameId] = useState<number | null>(null);
-  const [selectedBatterIds, setSelectedBatterIds] = useState<number[]>([]);
   const [selectedPitcherIds, setSelectedPitcherIds] = useState<number[]>([]);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState("Load a game to choose batters and pitchers.");
+  const [syncMessage, setSyncMessage] = useState("Load a game to choose a pitcher.");
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(null);
   const [lastSyncError, setLastSyncError] = useState<string | null>(null);
   const [lastGameState, setLastGameState] = useState<string | null>(null);
@@ -116,7 +112,6 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
     const restored = readStoredSession();
     if (restored?.gameId) {
       setGameId(restored.gameId);
-      setSelectedBatterIds(restored.selectedBatterIds);
       setSelectedPitcherIds(restored.selectedPitcherIds);
       setSyncMessage("Selections restored. Press Start monitoring to resume live sync.");
     }
@@ -125,8 +120,8 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hasHydrated) return;
-    writeStoredSession({ version: 1, gameId, selectedBatterIds, selectedPitcherIds });
-  }, [hasHydrated, gameId, selectedBatterIds, selectedPitcherIds]);
+    writeStoredSession({ version: 1, gameId, selectedPitcherIds });
+  }, [hasHydrated, gameId, selectedPitcherIds]);
 
   useEffect(
     () => () => {
@@ -137,12 +132,11 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
   );
 
   const runSync = useCallback(
-    async (targetGameId: number, batterIds: number[], pitcherIds: number[]) => {
+    async (targetGameId: number, pitcherIds: number[]) => {
       setIsSyncing(true);
       try {
         const report: LiveSyncReport = await syncLive({
           game_id: targetGameId,
-          batter_ids: batterIds,
           pitcher_ids: pitcherIds,
         });
         setSyncedGameId(report.game_id);
@@ -157,6 +151,7 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
           queryClient.invalidateQueries({ queryKey: ["players"] }),
           queryClient.invalidateQueries({ queryKey: ["events"] }),
           queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+          queryClient.invalidateQueries({ queryKey: ["pitch-mix-alerts"] }),
           queryClient.invalidateQueries({ queryKey: ["pregame-live-comparison"] }),
         ]);
         if (report.game_state === "Final") {
@@ -165,7 +160,7 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
           setSyncMessage("Final game snapshot synced; monitoring stopped.");
         } else if (monitoringRef.current) {
           timerRef.current = setTimeout(
-            () => void runSync(targetGameId, batterIds, pitcherIds),
+            () => void runSync(targetGameId, pitcherIds),
             SYNC_INTERVAL_MS,
           );
         }
@@ -175,7 +170,7 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
         setSyncMessage(message);
         if (monitoringRef.current) {
           timerRef.current = setTimeout(
-            () => void runSync(targetGameId, batterIds, pitcherIds),
+            () => void runSync(targetGameId, pitcherIds),
             SYNC_INTERVAL_MS,
           );
         }
@@ -198,7 +193,6 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
     (targetGameId: number, pitcherId: number) => {
       if (timerRef.current) clearTimeout(timerRef.current);
       setGameId(targetGameId);
-      setSelectedBatterIds([]);
       setSelectedPitcherIds([pitcherId]);
       setSyncedGameId(null);
       setLastGameState(null);
@@ -207,7 +201,7 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
       setSyncMessage("Syncing MLB snapshot...");
       monitoringRef.current = true;
       setIsMonitoring(true);
-      void runSync(targetGameId, [], [pitcherId]);
+      void runSync(targetGameId, [pitcherId]);
     },
     [runSync],
   );
@@ -222,7 +216,6 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
   const value = useMemo<LiveMonitoringContextValue>(
     () => ({
       gameId,
-      selectedBatterIds,
       selectedPitcherIds,
       isMonitoring,
       isSyncing,
@@ -237,7 +230,6 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
     }),
     [
       gameId,
-      selectedBatterIds,
       selectedPitcherIds,
       isMonitoring,
       isSyncing,

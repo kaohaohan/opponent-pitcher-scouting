@@ -1,7 +1,7 @@
 import type { AlertData, AlertsSummaryData } from "@/lib/types";
 import { DataState } from "@/components/DataState";
 
-export type RoleFilter = "pitcher" | "batter" | "all";
+export type RoleFilter = "pitcher" | "pitch-mix" | "all";
 
 const ruleLabels: Record<AlertData["rule"], string> = {
   extra_base_hit: "extra_base_hit",
@@ -9,11 +9,13 @@ const ruleLabels: Record<AlertData["rule"], string> = {
   high_velocity_hit: "high_velocity_hit",
   pitcher_extra_base_hit_allowed: "pitcher_extra_base_hit_allowed",
   pitcher_high_exit_velocity_allowed: "pitcher_high_exit_velocity_allowed",
+  pitch_mix: "pitch_mix",
 };
 
 function ruleSignal(rule: AlertData["rule"]): string {
   if (rule === "extra_base_hit" || rule === "pitcher_extra_base_hit_allowed") return "XBH";
   if (rule === "hard_contact" || rule === "pitcher_high_exit_velocity_allowed") return "EV";
+  if (rule === "pitch_mix") return "PM";
   return "V+";
 }
 
@@ -42,14 +44,14 @@ export function AlertsPanel({ alerts, summary, roleFilter, onRoleFilterChange }:
       </div>
 
       <div className="role-tabs" role="tablist" aria-label="Alert subject">
-        {(["pitcher", "batter", "all"] as const).map((role) => (
+        {(["pitcher", "pitch-mix", "all"] as const).map((role) => (
           <button
             key={role}
             type="button"
             className={roleFilter === role ? "is-active" : ""}
             onClick={() => onRoleFilterChange(role)}
           >
-            {role === "pitcher" ? "Pitcher" : role === "batter" ? "Batter" : "All"}
+            {role === "pitcher" ? "Pitcher" : role === "pitch-mix" ? "Pitch mix" : "All"}
           </button>
         ))}
       </div>
@@ -70,9 +72,17 @@ export function AlertsPanel({ alerts, summary, roleFilter, onRoleFilterChange }:
                     <span>{alert.player} · {alert.team} · {alert.subjectRole}</span>
                   </div>
                 </div>
-                <p>{alert.detail}</p>
+                {alert.triggeredRules.length === 1 ? (
+                  <p>{alert.detail}</p>
+                ) : (
+                  <ul className="alert-row__details">
+                    {alert.triggeredRules.map((trigger) => <li key={trigger.rule}>{trigger.detail}</li>)}
+                  </ul>
+                )}
                 <div className="alert-row__meta">
-                  <span className="rule-code">Rule: {ruleLabels[alert.rule]}</span>
+                  <span className="rule-code">
+                    Triggered: {alert.triggeredRules.map((trigger) => ruleLabels[trigger.rule]).join(" · ")}
+                  </span>
                 </div>
               </div>
               <div className="alert-row__moment" aria-label="Alert timing">

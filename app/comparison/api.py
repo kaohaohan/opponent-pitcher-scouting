@@ -20,6 +20,7 @@ from __future__ import annotations
 import threading
 import time
 from datetime import date
+from hashlib import sha256
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -38,6 +39,7 @@ from .llm.gemini import (
     GeminiMalformedResponseError,
     GeminiRequestError,
 )
+from .locations import PitchLocations, compute_pitch_locations
 from .schemas import ComparisonNote, PregameLiveComparison
 
 router = APIRouter(prefix="/api/live/games", tags=["comparison"])
@@ -62,6 +64,14 @@ _BaselineCacheKey = tuple[int, date, date]
 _baseline_cache: dict[_BaselineCacheKey, tuple[float, list[PitchRecord]]] = {}
 _baseline_cache_lock = threading.Lock()
 
+# Notes are deliberately cached only in this process. The comparison JSON is
+# part of the key, so a new live-pitch state gets a fresh note while rapid
+# repeat clicks for the same state reuse the existing Gemini response.
+_NOTE_CACHE_TTL_SECONDS = 60.0
+_NoteCacheKey = tuple[int, int, date, date, str]
+_note_cache: dict[_NoteCacheKey, tuple[float, ComparisonNote]] = {}
+_note_cache_lock = threading.Lock()
+
 
 def clear_baseline_cache() -> None:
     """Drop every cached Statcast baseline fetch.
@@ -72,6 +82,23 @@ def clear_baseline_cache() -> None:
     """
     with _baseline_cache_lock:
         _baseline_cache.clear()
+
+
+def clear_comparison_note_cache() -> None:
+    """Drop cached Gemini notes (used by tests and process-local resets)."""
+    with _note_cache_lock:
+        _note_cache.clear()
+
+
+def _comparison_note_cache_key(
+    game_id: int,
+    pitcher_id: int,
+    start_date: date,
+    end_date: date,
+    comparison: PregameLiveComparison,
+) -> _NoteCacheKey:
+    state_digest = sha256(comparison.model_dump_json().encode("utf-8")).hexdigest()
+    return (game_id, pitcher_id, start_date, end_date, state_digest)
 
 
 def _fetch_baseline_records(
@@ -100,27 +127,32 @@ def get_comparison_note_provider() -> ComparisonNoteProvider:
     return GeminiComparisonProvider()
 
 
-def _build_comparison(
+def build_pitcher_comparison(
     game_id: int,
     pitcher_id: int,
     start_date: date,
     end_date: date,
     source: PitchDataSource,
+    live_payload: dict | None = None,
 ) -> PregameLiveComparison:
     """Fetch both halves and assemble the deterministic comparison.
 
-    Shared by both routes below: the note route needs the exact same
+    Shared by both routes below (the note route needs the exact same
     comparison the numeric route would have returned, not a second,
-    possibly-different computation of it.
+    possibly-different computation of it) and by `app.api.routes.sync_live`,
+    which reuses this to evaluate pitch-mix signals for every watched
+    pitcher on each live sync — not a name-mangled private helper, since it
+    now has callers outside this module.
     """
     live_source = LiveSource(game_id=game_id)
-    try:
-        payload = live_source.fetch_snapshot()
-    except LiveGameNotFound as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except LiveSourceError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    live_metrics = compute_live_pitcher_metrics(payload, pitcher_id)
+    if live_payload is None:
+        try:
+            live_payload = live_source.fetch_snapshot()
+        except LiveGameNotFound as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except LiveSourceError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    live_metrics = compute_live_pitcher_metrics(live_payload, pitcher_id)
 
     try:
         records = _fetch_baseline_records(source, pitcher_id, start_date, end_date)
@@ -157,7 +189,22 @@ def get_pregame_live_comparison(
     (game not found, MLB feed down, Statcast down) is an HTTP error. Never
     calls Gemini — safe to poll.
     """
-    return _build_comparison(game_id, pitcher_id, start_date, end_date, source)
+    return build_pitcher_comparison(game_id, pitcher_id, start_date, end_date, source)
+
+
+@router.get(
+    "/{game_id}/pitchers/{pitcher_id}/locations",
+    response_model=PitchLocations,
+)
+def get_pitch_locations(game_id: int, pitcher_id: int) -> PitchLocations:
+    """Pitch locations for this outing, independent of Statcast and Gemini."""
+    try:
+        payload = LiveSource(game_id=game_id).fetch_snapshot()
+    except LiveGameNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except LiveSourceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return compute_pitch_locations(payload, pitcher_id)
 
 
 @router.post(
@@ -181,12 +228,27 @@ def generate_comparison_note(
     against separate computations of the deterministic numbers, so the
     numeric table is never blocked on this endpoint's success.
     """
-    comparison = _build_comparison(game_id, pitcher_id, start_date, end_date, source)
-    try:
-        return llm.generate_note(comparison)
-    except GeminiConfigurationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
-        ) from exc
-    except (GeminiRequestError, GeminiMalformedResponseError) as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    comparison = build_pitcher_comparison(game_id, pitcher_id, start_date, end_date, source)
+    cache_key = _comparison_note_cache_key(
+        game_id, pitcher_id, start_date, end_date, comparison
+    )
+    # Hold the process-local lock through generation. This intentionally
+    # serializes same-process note generation so two simultaneous clicks for
+    # the same state cannot both spend Gemini quota.
+    with _note_cache_lock:
+        cached = _note_cache.get(cache_key)
+        if cached is not None:
+            created_at, note = cached
+            if time.monotonic() - created_at < _NOTE_CACHE_TTL_SECONDS:
+                return note
+            _note_cache.pop(cache_key, None)
+        try:
+            note = llm.generate_note(comparison)
+        except GeminiConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+            ) from exc
+        except (GeminiRequestError, GeminiMalformedResponseError) as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        _note_cache[cache_key] = (time.monotonic(), note)
+        return note

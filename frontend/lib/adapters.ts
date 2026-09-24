@@ -4,6 +4,7 @@ import type {
   GameParticipantDto,
   GameSummaryDto,
   PitcherRefDto,
+  PitchMixAlertDto,
   PlateAppearanceDto,
   PlayerDto,
   PregameBriefResponseDto,
@@ -333,32 +334,25 @@ function isToday(value: string): boolean {
 
 export function toAlertData(
   alert: AlertDto,
-  playersById: Map<number, PlayerDto>,
   eventsById: Map<number, PlateAppearanceDto>,
 ): AlertData {
   const event = eventsById.get(alert.plate_appearance_id);
-  const player = event ? playersById.get(event.player_id) : undefined;
   const rule = toAlertRule(alert.rule_type);
-  const subject =
-    alert.subject_role === "pitcher"
-      ? {
-          name: event?.pitcher_name ?? "Unknown pitcher",
-          team: event?.pitcher_team ?? "—",
-        }
-      : {
-          name: player?.name ?? event?.batter_name ?? "Unknown player",
-          team: player?.team ?? event?.batter_team ?? "—",
-        };
 
   return {
     id: String(alert.id),
-    player: subject.name,
-    team: subject.team,
-    subjectRole: alert.subject_role,
+    gameId: event?.game_id ?? null,
+    plateAppearanceId: alert.plate_appearance_id,
+    player: event?.pitcher_name ?? "Unknown pitcher",
+    team: event?.pitcher_team ?? "—",
+    subjectRole: "pitcher",
+    category: "pitcher",
     event: event?.result ?? "Rule matched",
     detail: alert.message,
     gameMoment: event ? `Inning ${event.inning}` : "Recorded alert",
     timestamp: relativeTime(alert.created_at),
+    createdAt: alert.created_at,
+    triggeredRules: [{ rule, detail: alert.message }],
     rule,
     severity:
       rule === "extra_base_hit" ||
@@ -370,20 +364,70 @@ export function toAlertData(
   };
 }
 
-export function toAlertsSummary(
-  alerts: AlertDto[],
-  players: PlayerDto[],
-): AlertsSummaryData {
+export function toPitchMixAlertData(alert: PitchMixAlertDto): AlertData {
+  const metric = alert.metric === "usage" ? "usage" : "velocity";
+  const delta =
+    alert.metric === "usage"
+      ? `${alert.delta > 0 ? "+" : ""}${alert.delta.toFixed(1)}pp`
+      : `${alert.delta > 0 ? "+" : ""}${alert.delta.toFixed(1)} mph`;
+  const values =
+    alert.metric === "usage"
+      ? `${alert.baseline_value.toFixed(1)}% baseline to ${alert.today_value.toFixed(1)}% today`
+      : `${alert.baseline_value.toFixed(1)} to ${alert.today_value.toFixed(1)} mph`;
+
   return {
-    today: alerts.filter((alert) => isToday(alert.created_at)).length,
-    highPriority: alerts.filter(
-      (alert) =>
-        alert.rule_type === "extra_base_hit" ||
-        alert.rule_type === "hard_contact" ||
-        alert.rule_type === "pitcher_extra_base_hit_allowed" ||
-        alert.rule_type === "pitcher_high_exit_velocity_allowed",
-    ).length,
-    trackedPlayers: players.length,
+    id: `pitch-mix-${alert.id}`,
+    gameId: alert.game_id,
+    plateAppearanceId: null,
+    player: alert.pitcher_name,
+    team: alert.team_name ?? "—",
+    subjectRole: "pitcher",
+    category: "pitch-mix",
+    event: `${alert.pitch_name ?? alert.pitch_type} ${metric}`,
+    detail: `${values} (${delta}). ${alert.sample_basis} pitch${alert.sample_basis === 1 ? "" : "es"} sampled.`,
+    gameMoment: alert.active ? `Game ${alert.game_id} · Active` : `Game ${alert.game_id} · Resolved`,
+    timestamp: relativeTime(alert.updated_at),
+    createdAt: alert.updated_at,
+    triggeredRules: [{ rule: "pitch_mix", detail: `${values} (${delta}). ${alert.sample_basis} pitch${alert.sample_basis === 1 ? "" : "es"} sampled.` }],
+    rule: "pitch_mix",
+    severity: alert.level === "alert" ? "high" : "standard",
+  };
+}
+
+/** Merge multiple pitcher rules raised by the same plate appearance into one
+ * event card. Pitch-mix alerts have no PA id and therefore remain separate. */
+export function mergePitcherAlerts(alerts: AlertData[]): AlertData[] {
+  const groups = new Map<string, AlertData>();
+  for (const alert of alerts) {
+    if (alert.plateAppearanceId === null) {
+      groups.set(`alert:${alert.id}`, alert);
+      continue;
+    }
+    const key = `${alert.gameId ?? "unknown"}:${alert.plateAppearanceId}`;
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, { ...alert, triggeredRules: [...alert.triggeredRules] });
+      continue;
+    }
+    const rules = [...existing.triggeredRules, ...alert.triggeredRules].filter(
+      (rule, index, all) => all.findIndex((candidate) => candidate.rule === rule.rule) === index,
+    );
+    groups.set(key, {
+      ...existing,
+      triggeredRules: rules,
+      severity: existing.severity === "high" || alert.severity === "high" ? "high" : "standard",
+    });
+  }
+  return [...groups.values()].sort(
+    (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
+  );
+}
+
+export function toAlertsSummary(alerts: AlertData[]): AlertsSummaryData {
+  return {
+    today: alerts.filter((alert) => isToday(alert.createdAt)).length,
+    highPriority: alerts.filter((alert) => alert.severity === "high").length,
+    trackedPlayers: new Set(alerts.map((alert) => alert.player)).size,
   };
 }
 

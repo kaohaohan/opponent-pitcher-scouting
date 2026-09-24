@@ -233,11 +233,33 @@ class LiveSyncReport(ReplayReport):
     game_id: str
     game_state: str | None = None
     game_status: str | None = None
+    #: How many `pitch_mix_alerts` rows this sync inserted or updated across
+    #: every watched pitcher. `0` when nothing crossed a threshold this
+    #: sync — a normal outcome, not an error.
+    pitch_mix_alerts_upserted: int = 0
+    #: Set when computing pitch-mix signals failed for one or more watched
+    #: pitchers this sync (typically a Statcast baseline fetch failure).
+    #: Deliberately independent of plate-appearance ingestion above, which
+    #: this never blocks or rolls back.
+    pitch_mix_error: str | None = None
 
 
 class PitcherRef(BaseModel):
     id: int
     name: str
+
+
+class PitcherUsage(PitcherRef):
+    """One entry in `GameSummary.pitchers_used`: a pitcher plus their line
+    from the live feed's boxscore. `pitches`/`innings_pitched` are `None`
+    when the boxscore hasn't populated that stat yet (e.g. the instant a
+    reliever enters, before their first pitch is recorded) — never `0`,
+    which would misreport "no pitches thrown" for a pitcher already on the
+    mound.
+    """
+
+    pitches: int | None = None
+    innings_pitched: str | None = None
 
 
 class GameSummary(BaseModel):
@@ -276,6 +298,37 @@ class GameSummary(BaseModel):
     #: pitcher. Lets a client tell "my pitcher was replaced" apart from "the
     #: other team's pitcher is on the mound this half-inning", which
     #: `current_pitcher` alone cannot. Empty from the schedule endpoint.
-    pitchers_used: dict[Literal["away", "home"], list[PitcherRef]] = Field(
+    pitchers_used: dict[Literal["away", "home"], list[PitcherUsage]] = Field(
         default_factory=lambda: {"away": [], "home": []}
     )
+
+
+class PitchMixAlertRead(BaseModel):
+    """One persisted pitch-mix (usage/velocity) signal for a watched
+    pitcher's outing — see `app.models.PitchMixAlert`."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    game_id: str
+    pitcher_id: int
+    pitcher_name: str
+    team_name: str | None
+    metric: Literal["usage", "velocity"]
+    pitch_type: str
+    pitch_name: str | None
+    level: Literal["watch", "alert"]
+    baseline_value: float
+    today_value: float
+    delta: float
+    sample_basis: int
+    raised_at_pitches: int
+    active: bool
+    first_raised_at: datetime
+    updated_at: datetime
+
+    @field_validator("first_raised_at", "updated_at")
+    @classmethod
+    def _assume_utc(cls, value: datetime) -> datetime:
+        """Same SQLite-drops-tzinfo fix as `AlertRead._assume_utc`."""
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value

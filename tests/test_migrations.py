@@ -112,7 +112,7 @@ def test_migration_upgrades_phase_3_schema_and_is_idempotent():
     assert "subject_role" in alert_columns
     assert role == "batter"
     assert pitcher_player_id is None
-    assert version == 1
+    assert version == 2
 
 
 def test_migration_fails_on_legacy_duplicate_alerts():

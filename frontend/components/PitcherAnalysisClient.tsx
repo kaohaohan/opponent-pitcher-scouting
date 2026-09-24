@@ -8,6 +8,7 @@ import { ComparisonNote } from "@/components/ComparisonNote";
 import { DataState } from "@/components/DataState";
 import { shiftDate, todayIso } from "@/components/DateNav";
 import { PitchMixComparison } from "@/components/PitchMixComparison";
+import { PitchLocations } from "@/components/PitchLocations";
 import { PitcherAvatar } from "@/components/PitcherAvatar";
 import { RecentPitcherActivity } from "@/components/RecentPitcherActivity";
 import { SignalsPanel } from "@/components/SignalsPanel";
@@ -24,6 +25,7 @@ import {
   useEvents,
   useGameSummary,
   usePregameLiveComparison,
+  usePitchLocations,
   type ComparisonRequest,
 } from "@/lib/queries";
 
@@ -101,6 +103,7 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
 
   const comparisonRequest: ComparisonRequest = { gameId, pitcherId, startDate, endDate };
   const comparisonQuery = usePregameLiveComparison(comparisonRequest);
+  const locationsQuery = usePitchLocations(gameId, pitcherId);
   const comparison = comparisonQuery.data ? toPregameLiveComparison(comparisonQuery.data) : null;
   // `placeholderData: keepPreviousData` (see `usePregameLiveComparison`)
   // keeps the previous pitcher/window's result on screen while a changed
@@ -153,22 +156,12 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
     );
   }, [eventsQuery.data, alertsQuery.data, pitcherId, pitcherName]);
 
-  // Compare against this pitcher's OWN team, not whoever is on the mound:
-  // every half-inning the other team's pitcher takes the mound, which is not
-  // a pitching change. The viewed pitcher's side is whichever team's
-  // appearance list includes him; that list's last entry is his team's
-  // current pitcher. Before he has appeared (side unknown) there's nothing
-  // to report.
-  const ownSide = summary
-    ? (["away", "home"] as const).find((side) =>
-        summary.pitchersUsed[side].some((pitcher) => pitcher.id === pitcherId),
-      )
-    : undefined;
-  const ownTeamPitchers = ownSide ? summary!.pitchersUsed[ownSide] : [];
-  const replacementPitcher = ownTeamPitchers[ownTeamPitchers.length - 1] ?? null;
+  // Player Watch discovery follows the game's current pitcher, but this page
+  // stays pinned to the selected pitcher. When the mound changes, show the
+  // live context without changing the comparison target under the user's feet.
+  const currentPitcher = summary?.currentPitcher ?? null;
   const showSwitchBanner =
-    summary?.state === "live" && replacementPitcher !== null && replacementPitcher.id !== pitcherId;
-  const currentPitcher = replacementPitcher;
+    summary?.state === "live" && currentPitcher !== null && currentPitcher.id !== pitcherId;
   const showFinalTag = summary?.state === "final";
 
   return (
@@ -208,12 +201,14 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
 
       {showSwitchBanner ? (
         <div className="pitcher-switch-banner">
-          <span>Replaced — now pitching: {currentPitcher!.name}</span>
+          <span>
+            {pitcherName} is no longer pitching. Now pitching: {currentPitcher!.name}
+          </span>
           <Link
             className="secondary-button"
             href={analysisHref(gameId, currentPitcher!.id, currentPitcher!.name, summary?.gameDate)}
           >
-            Switch to {currentPitcher!.name}
+            View current pitcher
           </Link>
         </div>
       ) : showFinalTag ? (
@@ -221,6 +216,13 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
       ) : null}
 
       <PitchMixComparison comparison={comparison} isUpdating={comparisonUpdating} />
+
+      <PitchLocations
+        locations={locationsQuery.data ?? null}
+        isLoading={locationsQuery.isLoading}
+        error={locationsQuery.isError ? errorMessage(locationsQuery.error) : null}
+        onRetry={() => void locationsQuery.refetch()}
+      />
 
       <SignalsPanel comparison={comparison} isUpdating={comparisonUpdating} />
 

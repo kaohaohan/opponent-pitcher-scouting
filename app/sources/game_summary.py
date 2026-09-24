@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..schemas import GameSummary, PitcherRef, TeamRead
+from ..schemas import GameSummary, PitcherUsage, TeamRead
 from ._linescore import game_state_from_status, linescore_fields, parse_pitcher_ref
 
 
@@ -88,12 +88,13 @@ def _runs(team_linescore: Any) -> int | None:
     return runs if isinstance(runs, int) else None
 
 
-def _pitchers_used(team_boxscore: Any) -> list[PitcherRef]:
-    """A team's pitchers in order of appearance, from its boxscore.
+def _pitchers_used(team_boxscore: Any) -> list[PitcherUsage]:
+    """A team's pitchers in order of appearance, from its boxscore, each
+    with their line for this game.
 
-    `teams.<side>.pitchers` is MLB's ordered list of pitcher ids; names come
-    from the same team's `players["ID<id>"].person`. An id without a
-    resolvable name is skipped rather than guessed at.
+    `teams.<side>.pitchers` is MLB's ordered list of pitcher ids; names and
+    per-pitcher stats come from the same team's `players["ID<id>"]`. An id
+    without a resolvable name is skipped rather than guessed at.
     """
     if not isinstance(team_boxscore, dict):
         return []
@@ -101,11 +102,37 @@ def _pitchers_used(team_boxscore: Any) -> list[PitcherRef]:
     players = team_boxscore.get("players")
     if not isinstance(pitcher_ids, list) or not isinstance(players, dict):
         return []
-    used: list[PitcherRef] = []
+    used: list[PitcherUsage] = []
     for pitcher_id in pitcher_ids:
         player = players.get(f"ID{pitcher_id}")
-        person = player.get("person") if isinstance(player, dict) else None
-        pitcher = parse_pitcher_ref(person)
+        pitcher = _pitcher_usage(player)
         if pitcher is not None:
             used.append(pitcher)
     return used
+
+
+def _pitcher_usage(player: Any) -> PitcherUsage | None:
+    """Build one `PitcherUsage` from a boxscore `players["ID<id>"]` entry.
+
+    `pitches`/`innings_pitched` degrade to `None` (never `0`) whenever the
+    boxscore hasn't populated `stats.pitching` for this player yet.
+    """
+    person = player.get("person") if isinstance(player, dict) else None
+    if not isinstance(person, dict):
+        return None
+    person_id = person.get("id")
+    name = person.get("fullName")
+    if not isinstance(person_id, int) or not isinstance(name, str) or not name:
+        return None
+
+    stats = player.get("stats") if isinstance(player, dict) else None
+    pitching = stats.get("pitching") if isinstance(stats, dict) else None
+    pitches = pitching.get("numberOfPitches") if isinstance(pitching, dict) else None
+    innings_pitched = pitching.get("inningsPitched") if isinstance(pitching, dict) else None
+
+    return PitcherUsage(
+        id=person_id,
+        name=name,
+        pitches=pitches if isinstance(pitches, int) else None,
+        innings_pitched=innings_pitched if isinstance(innings_pitched, str) else None,
+    )

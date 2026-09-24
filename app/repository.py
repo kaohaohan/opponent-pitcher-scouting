@@ -14,12 +14,14 @@ a SELECT-then-INSERT. Two reasons:
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from sqlalchemy import distinct, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
-from .models import Alert, PlateAppearance, Player
+from .comparison.schemas import Signal
+from .models import Alert, PitchMixAlert, PlateAppearance, Player
 from .rules import RuleMatch
 from .schemas import PlateAppearanceEvent, WatchRole
 
@@ -176,4 +178,114 @@ def list_alerts(
     if subject_role is not None:
         stmt = stmt.where(Alert.subject_role == str(subject_role))
     stmt = stmt.order_by(Alert.id.desc()).limit(limit)
+    return session.execute(stmt).scalars().all()
+
+
+def upsert_pitch_mix_signals(
+    session: Session,
+    *,
+    game_id: str,
+    pitcher_id: int,
+    pitcher_name: str,
+    team_name: str | None,
+    signals: Sequence[Signal],
+    live_total_pitches: int,
+) -> list[PitchMixAlert]:
+    """Upsert one pitcher's pitch-mix signals for this sync's evaluation.
+
+    Rules (see `app.models.PitchMixAlert`):
+    * A `(metric, pitch_type)` not seen before for this `(game_id,
+      pitcher_id)` is inserted.
+    * An existing row's level only escalates (`watch` -> `alert`); it never
+      downgrades. `raised_at_pitches` only moves on an escalation (or the
+      initial insert) — a same-level refresh leaves it alone.
+    * `today_value`/`delta`/`sample_basis`/`pitcher_name`/`team_name`/
+      `updated_at` refresh on every call regardless of level change.
+    * Every row for this `(game_id, pitcher_id)` not present in `signals`
+      this time is marked `active = False` (kept, never deleted) — it
+      still happened.
+
+    Returns every row this call touched (inserted or updated), not the
+    ones it left untouched by marking inactive.
+    """
+    now = datetime.now(UTC)
+    existing_rows = (
+        session.execute(
+            select(PitchMixAlert).where(
+                PitchMixAlert.game_id == game_id, PitchMixAlert.pitcher_id == pitcher_id
+            )
+        )
+        .scalars()
+        .all()
+    )
+    rows_by_key = {(row.metric, row.pitch_type): row for row in existing_rows}
+    current_keys = {(signal.metric, signal.pitch_type) for signal in signals}
+
+    touched: list[PitchMixAlert] = []
+    for signal in signals:
+        key = (signal.metric, signal.pitch_type)
+        existing = rows_by_key.get(key)
+        if existing is None:
+            row = PitchMixAlert(
+                game_id=game_id,
+                pitcher_id=pitcher_id,
+                pitcher_name=pitcher_name,
+                team_name=team_name,
+                metric=str(signal.metric),
+                pitch_type=signal.pitch_type,
+                pitch_name=signal.pitch_name,
+                level=str(signal.level),
+                baseline_value=signal.baseline_value,
+                today_value=signal.today_value,
+                delta=signal.delta,
+                sample_basis=signal.sample_basis,
+                raised_at_pitches=live_total_pitches,
+                active=True,
+                first_raised_at=now,
+                updated_at=now,
+            )
+            session.add(row)
+            touched.append(row)
+            continue
+
+        escalating = existing.level == "watch" and signal.level == "alert"
+        existing.pitcher_name = pitcher_name
+        existing.team_name = team_name
+        existing.pitch_name = signal.pitch_name
+        existing.baseline_value = signal.baseline_value
+        existing.today_value = signal.today_value
+        existing.delta = signal.delta
+        existing.sample_basis = signal.sample_basis
+        existing.active = True
+        existing.updated_at = now
+        if escalating:
+            existing.level = str(signal.level)
+            existing.raised_at_pitches = live_total_pitches
+        touched.append(existing)
+
+    for key, row in rows_by_key.items():
+        if key not in current_keys and row.active:
+            row.active = False
+            row.updated_at = now
+
+    session.flush()
+    return touched
+
+
+def list_pitch_mix_alerts(
+    session: Session,
+    game_id: str | None = None,
+    pitcher_id: int | None = None,
+    active: bool | None = None,
+    limit: int = 200,
+) -> Sequence[PitchMixAlert]:
+    """Persisted pitch-mix signals, newest updated first."""
+    stmt = select(PitchMixAlert)
+    if game_id is not None:
+        stmt = stmt.where(PitchMixAlert.game_id == game_id)
+    if pitcher_id is not None:
+        stmt = stmt.where(PitchMixAlert.pitcher_id == pitcher_id)
+    if active is not None:
+        stmt = stmt.where(PitchMixAlert.active == active)
+    stmt = stmt.order_by(PitchMixAlert.updated_at.desc(), PitchMixAlert.id.desc()).limit(limit)
     return session.execute(stmt).scalars().all()

@@ -10,6 +10,8 @@ import {
   getGameParticipants,
   getGameSummary,
   getPlayers,
+  getPitchMixAlerts,
+  getPitchLocations,
   getPregameLiveComparison,
   getSchedule,
   searchPitchers,
@@ -110,6 +112,17 @@ export function useAlerts(limit = 200) {
   });
 }
 
+export function usePitchMixAlerts(limit = 200) {
+  return useQuery({
+    queryKey: ["pitch-mix-alerts", limit],
+    queryFn: () => getPitchMixAlerts(limit),
+    staleTime: 10 * 1000,
+    refetchInterval: 15 * 1000,
+    refetchIntervalInBackground: false,
+    retry: 1,
+  });
+}
+
 // Only fires once the user has typed enough to narrow MLB's people search;
 // the query key includes the search term so React Query caches per-term.
 export function usePitcherSearch(query: string) {
@@ -164,6 +177,17 @@ export function usePregameLiveComparison(request: ComparisonRequest | null) {
     // query key; keep showing the previous comparison while the new one
     // loads instead of flashing back to a loading state.
     placeholderData: keepPreviousData,
+    refetchInterval: 15 * 1000,
+    refetchIntervalInBackground: false,
+    retry: 1,
+  });
+}
+
+export function usePitchLocations(gameId: number, pitcherId: number) {
+  return useQuery({
+    queryKey: ["pitch-locations", gameId, pitcherId],
+    queryFn: () => getPitchLocations(gameId, pitcherId),
+    staleTime: 10 * 1000,
     refetchInterval: 15 * 1000,
     refetchIntervalInBackground: false,
     retry: 1,

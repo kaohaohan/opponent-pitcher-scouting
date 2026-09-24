@@ -79,19 +79,25 @@ export interface PlayerWatchData {
 
 export interface AlertData {
   id: string;
+  gameId: string | null;
+  plateAppearanceId: number | null;
   player: string;
   team: string;
-  subjectRole: "batter" | "pitcher";
+  subjectRole: "pitcher";
+  category: "pitcher" | "pitch-mix";
   event: string;
   detail: string;
   gameMoment: string;
   timestamp: string;
+  createdAt: string;
+  triggeredRules: Array<{ rule: AlertData["rule"]; detail: string }>;
   rule:
     | "extra_base_hit"
     | "hard_contact"
     | "high_velocity_hit"
     | "pitcher_extra_base_hit_allowed"
-    | "pitcher_high_exit_velocity_allowed";
+    | "pitcher_high_exit_velocity_allowed"
+    | "pitch_mix";
   severity: "standard" | "high";
 }
 

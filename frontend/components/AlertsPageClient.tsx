@@ -4,8 +4,8 @@ import { useState } from "react";
 
 import { AlertsPanel, type RoleFilter } from "@/components/AlertsPanel";
 import { DataState } from "@/components/DataState";
-import { toAlertData, toAlertsSummary } from "@/lib/adapters";
-import { useAlerts, useEvents, usePlayers } from "@/lib/queries";
+import { mergePitcherAlerts, toAlertData, toAlertsSummary, toPitchMixAlertData } from "@/lib/adapters";
+import { useAlerts, useEvents, usePitchMixAlerts } from "@/lib/queries";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Alerts could not be loaded.";
@@ -13,38 +13,43 @@ function errorMessage(error: unknown): string {
 
 export function AlertsPageClient() {
   const alertsQuery = useAlerts();
-  const playersQuery = usePlayers();
+  const pitchMixAlertsQuery = usePitchMixAlerts();
   const eventsQuery = useEvents(undefined, 1000);
-  // Pitcher-role alerts are the primary opponent-scouting signal; batter
-  // alerts and the full stream remain one click away rather than deleted.
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("pitcher");
 
-  if (alertsQuery.isLoading || playersQuery.isLoading || eventsQuery.isLoading) {
+  if (alertsQuery.isLoading || pitchMixAlertsQuery.isLoading || eventsQuery.isLoading) {
     return <DataState kind="loading">Loading alert stream…</DataState>;
   }
 
-  const error = alertsQuery.error ?? playersQuery.error ?? eventsQuery.error;
-  const hasCachedData = Boolean(alertsQuery.data || playersQuery.data || eventsQuery.data);
+  const error = alertsQuery.error ?? pitchMixAlertsQuery.error ?? eventsQuery.error;
+  const hasCachedData = Boolean(alertsQuery.data || pitchMixAlertsQuery.data || eventsQuery.data);
   if (error && !hasCachedData) {
     return (
-      <DataState kind="error" onRetry={() => void Promise.all([alertsQuery.refetch(), playersQuery.refetch(), eventsQuery.refetch()])}>
+      <DataState kind="error" onRetry={() => void Promise.all([alertsQuery.refetch(), pitchMixAlertsQuery.refetch(), eventsQuery.refetch()])}>
         {errorMessage(error)}
       </DataState>
     );
   }
 
-  const players = playersQuery.data ?? [];
-  const alerts = alertsQuery.data ?? [];
-  const filteredAlerts =
-    roleFilter === "all" ? alerts : alerts.filter((alert) => alert.subject_role === roleFilter);
   const eventsById = new Map((eventsQuery.data ?? []).map((event) => [event.id, event]));
-  const playersById = new Map(players.map((player) => [player.id, player]));
-  const view = filteredAlerts.map((alert) => toAlertData(alert, playersById, eventsById));
+  const pitcherAlerts = (alertsQuery.data ?? [])
+    .filter((alert) => alert.subject_role === "pitcher")
+    .map((alert) => toAlertData(alert, eventsById));
+  const mergedPitcherAlerts = mergePitcherAlerts(pitcherAlerts);
+  const pitchMixAlerts = (pitchMixAlertsQuery.data ?? []).map(toPitchMixAlertData);
+  const view =
+    roleFilter === "pitcher"
+      ? mergedPitcherAlerts
+      : roleFilter === "pitch-mix"
+        ? pitchMixAlerts
+        : [...mergedPitcherAlerts, ...pitchMixAlerts].sort(
+            (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
+          );
 
   return (
     <AlertsPanel
       alerts={view}
-      summary={toAlertsSummary(filteredAlerts, players)}
+      summary={toAlertsSummary(view)}
       roleFilter={roleFilter}
       onRoleFilterChange={setRoleFilter}
     />

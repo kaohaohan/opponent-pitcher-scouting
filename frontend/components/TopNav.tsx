@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { useLiveMonitoring } from "@/lib/live-monitoring-provider";
 import type { NavSection } from "@/lib/types";
-import { useAlerts } from "@/lib/queries";
+import { useAlerts, usePitchMixAlerts } from "@/lib/queries";
 
 const navigation: Array<{ id: NavSection; label: string; href: string }> = [
   { id: "pregame", label: "Pregame", href: "/pregame" },
@@ -14,8 +14,12 @@ const navigation: Array<{ id: NavSection; label: string; href: string }> = [
 
 export function TopNav({ active }: { active: NavSection }) {
   const alertsQuery = useAlerts();
+  const pitchMixAlertsQuery = usePitchMixAlerts();
   const monitoring = useLiveMonitoring();
-  const watchedCount = monitoring.selectedBatterIds.length + monitoring.selectedPitcherIds.length;
+  const watchedCount = monitoring.selectedPitcherIds.length;
+  const visibleAlertCount =
+    (alertsQuery.data?.filter((alert) => alert.subject_role === "pitcher").length ?? 0) +
+    (pitchMixAlertsQuery.data?.length ?? 0);
 
   return (
     <header className="topbar">
@@ -39,8 +43,8 @@ export function TopNav({ active }: { active: NavSection }) {
               key={item.id}
             >
               {item.label}
-              {item.id === "alerts" && alertsQuery.data ? (
-                <span className="nav-count">{alertsQuery.data.length}</span>
+              {item.id === "alerts" && (alertsQuery.data || pitchMixAlertsQuery.data) ? (
+                <span className="nav-count">{visibleAlertCount}</span>
               ) : null}
             </Link>
           ))}

@@ -58,6 +58,26 @@ export interface AlertDto {
   created_at: string;
 }
 
+export interface PitchMixAlertDto {
+  id: number;
+  game_id: string;
+  pitcher_id: number;
+  pitcher_name: string;
+  team_name: string | null;
+  metric: "usage" | "velocity";
+  pitch_type: string;
+  pitch_name: string | null;
+  level: "watch" | "alert";
+  baseline_value: number;
+  today_value: number;
+  delta: number;
+  sample_basis: number;
+  raised_at_pitches: number;
+  active: boolean;
+  first_raised_at: string;
+  updated_at: string;
+}
+
 export interface TeamDto {
   id: number | null;
   name: string;
@@ -239,6 +259,11 @@ export function getAlerts(limit = 200): Promise<AlertDto[]> {
   return fetchJson<AlertDto[]>(`/api/alerts?${params.toString()}`);
 }
 
+export function getPitchMixAlerts(limit = 200): Promise<PitchMixAlertDto[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return fetchJson<PitchMixAlertDto[]>(`/api/pitch-mix-alerts?${params.toString()}`);
+}
+
 export function generatePregameBrief(
   request: PregameBriefRequest,
 ): Promise<PregameBriefResponseDto> {
@@ -299,6 +324,23 @@ export interface PregameLiveComparisonDto {
   rows: PregameLiveComparisonRowDto[];
   signals: SignalDto[];
   limitations: string[];
+}
+
+export interface PitchLocationDto {
+  pitch_type: string;
+  plate_x: number;
+  plate_z: number;
+  sz_top: number;
+  sz_bot: number;
+}
+
+export interface PitchLocationsDto {
+  total_pitches: number;
+  points: PitchLocationDto[];
+}
+
+export function getPitchLocations(gameId: number, pitcherId: number): Promise<PitchLocationsDto> {
+  return fetchJson<PitchLocationsDto>(`/api/live/games/${gameId}/pitchers/${pitcherId}/locations`);
 }
 
 export interface NotableChangeDto {

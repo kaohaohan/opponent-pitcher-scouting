@@ -135,3 +135,54 @@ class Alert(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     plate_appearance: Mapped[PlateAppearance] = relationship(back_populates="alerts")
+
+
+class PitchMixAlert(Base):
+    """A pitch-mix (usage/velocity) signal for one watched pitcher's outing,
+    upserted from `app.comparison.signals.evaluate_signals` on every live
+    sync. Unlike `Alert`, which is a one-shot event tied to a single plate
+    appearance, this row tracks one (game, pitcher, metric, pitch type)
+    signal over the whole outing: its level only ever escalates
+    (watch -> alert, never back down), and its numeric snapshot
+    (`today_value`/`delta`/`sample_basis`) refreshes on every sync while the
+    signal is still present. A signal that stops clearing the threshold is
+    left in place with `active = False` rather than deleted — it happened,
+    and the Alerts page still shows it, just muted.
+    """
+
+    __tablename__ = "pitch_mix_alerts"
+    __table_args__ = (
+        UniqueConstraint(
+            "game_id",
+            "pitcher_id",
+            "metric",
+            "pitch_type",
+            name="uq_pitch_mix_alert_game_pitcher_metric_pitch",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    game_id: Mapped[str] = mapped_column(String(64), index=True)
+    pitcher_id: Mapped[int] = mapped_column(Integer, index=True)
+    pitcher_name: Mapped[str] = mapped_column(String(128))
+    team_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    metric: Mapped[str] = mapped_column(String(16))
+    pitch_type: Mapped[str] = mapped_column(String(16))
+    pitch_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    level: Mapped[str] = mapped_column(String(16))
+    baseline_value: Mapped[float] = mapped_column(Float)
+    today_value: Mapped[float] = mapped_column(Float)
+    delta: Mapped[float] = mapped_column(Float)
+    sample_basis: Mapped[int] = mapped_column(Integer)
+    #: The live outing's total pitch count at the moment this signal was
+    #: first raised, or last escalated to a higher level — never updated by
+    #: a same-level refresh.
+    raised_at_pitches: Mapped[int] = mapped_column(Integer)
+    #: Present in the most recent evaluation for this pitcher/game. A row
+    #: that stops clearing the threshold is kept (never deleted) with this
+    #: flipped to `False`.
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    first_raised_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )

@@ -209,6 +209,31 @@ def test_note_endpoint_returns_the_generated_note(client, monkeypatch):
     assert isinstance(fake_note.received_comparisons[0], PregameLiveComparison)
 
 
+def test_note_endpoint_caches_repeated_requests_for_the_same_comparison_state(client, monkeypatch):
+    """Repeated clicks for an unchanged live state must spend Gemini quota once."""
+    from app.comparison.api import get_comparison_note_provider
+
+    monkeypatch.setattr(comparison_api, "LiveSource", StubLiveSource(LIVE_PAYLOAD))
+    _override_pitch_source(client.app, statcast_record("SL", 25, 85.6))
+    fake_note = FakeComparisonNoteProvider(
+        ComparisonNote(summary="Cached note.", notable_changes=[], sample_note="ok")
+    )
+    client.app.dependency_overrides[get_comparison_note_provider] = lambda: fake_note
+    params = {"start_date": "2025-08-01", "end_date": "2025-08-15"}
+
+    first = client.post(
+        f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison/note", params=params
+    )
+    second = client.post(
+        f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison/note", params=params
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json() == second.json()
+    assert len(fake_note.received_comparisons) == 1
+
+
 def test_note_endpoint_returns_503_when_gemini_is_unconfigured(client, monkeypatch):
     from app.comparison.api import get_comparison_note_provider
     from app.comparison.llm.gemini import GeminiConfigurationError

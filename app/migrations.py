@@ -7,7 +7,7 @@ from collections.abc import Callable
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 
 Migration = Callable[[Engine], None]
@@ -22,6 +22,9 @@ def run_migrations(engine: Engine) -> None:
     if current < 1:
         _migration_001_role_aware_pitchers(engine)
         _set_version(engine, 1)
+    if current < 2:
+        _migration_002_pitch_mix_alerts(engine)
+        _set_version(engine, 2)
 
 
 def _ensure_version_table(engine: Engine) -> None:
@@ -89,6 +92,57 @@ def _migration_001_role_aware_pitchers(engine: Engine) -> None:
                     "ON alerts (plate_appearance_id, subject_role, rule_type)"
                 )
             )
+
+
+def _migration_002_pitch_mix_alerts(engine: Engine) -> None:
+    """Create `pitch_mix_alerts`.
+
+    `Base.metadata.create_all()` (run just before this) already creates any
+    table newly added to the ORM's metadata, on both a fresh database and
+    an existing one — so this migration is belt-and-suspenders rather than
+    load-bearing. It exists for the same reason migration 001 does: an
+    explicit, ordered record of every additive schema change in
+    `schema_migrations`, with its own test coverage independent of the ORM.
+    """
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS pitch_mix_alerts (
+                    id INTEGER PRIMARY KEY,
+                    game_id VARCHAR(64) NOT NULL,
+                    pitcher_id INTEGER NOT NULL,
+                    pitcher_name VARCHAR(128) NOT NULL,
+                    team_name VARCHAR(128),
+                    metric VARCHAR(16) NOT NULL,
+                    pitch_type VARCHAR(16) NOT NULL,
+                    pitch_name VARCHAR(64),
+                    level VARCHAR(16) NOT NULL,
+                    baseline_value FLOAT NOT NULL,
+                    today_value FLOAT NOT NULL,
+                    delta FLOAT NOT NULL,
+                    sample_basis INTEGER NOT NULL,
+                    raised_at_pitches INTEGER NOT NULL,
+                    active BOOLEAN NOT NULL DEFAULT 1,
+                    first_raised_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL,
+                    UNIQUE(game_id, pitcher_id, metric, pitch_type)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_pitch_mix_alerts_game_id "
+                "ON pitch_mix_alerts (game_id)"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_pitch_mix_alerts_pitcher_id "
+                "ON pitch_mix_alerts (pitcher_id)"
+            )
+        )
 
 
 def _columns(connection, table_name: str) -> set[str]:

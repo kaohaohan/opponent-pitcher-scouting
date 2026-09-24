@@ -6,7 +6,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from app.comparison.api import clear_baseline_cache
+from app.comparison.api import clear_baseline_cache, clear_comparison_note_cache
 
 
 @pytest.fixture(autouse=True)
@@ -16,5 +16,7 @@ def _isolated_baseline_cache() -> Iterator[None]:
     into another's assertions about call counts or fetched data.
     """
     clear_baseline_cache()
+    clear_comparison_note_cache()
     yield
     clear_baseline_cache()
+    clear_comparison_note_cache()

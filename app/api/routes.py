@@ -6,13 +6,16 @@ ORM rows into response models. No domain logic lives here.
 
 from __future__ import annotations
 
-from datetime import date as date_cls
+from datetime import date as date_cls, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from .. import repository
+from ..comparison.api import build_pitcher_comparison
 from ..db import SessionFactory, get_session
+from ..pregame.api import get_pitch_source
+from ..pregame.sources.base import PitchDataSource
 from ..processing import PlateAppearanceProcessor
 from ..schemas import (
     AlertRead,
@@ -20,6 +23,7 @@ from ..schemas import (
     GameSummary,
     LiveSyncReport,
     LiveSyncRequest,
+    PitchMixAlertRead,
     PlateAppearanceRead,
     PlayerRead,
     ReplayReport,
@@ -79,6 +83,21 @@ def get_alerts(
     return [AlertRead.model_validate(row) for row in rows]
 
 
+@router.get("/pitch-mix-alerts", response_model=list[PitchMixAlertRead])
+def get_pitch_mix_alerts(
+    game_id: str | None = None,
+    pitcher_id: int | None = None,
+    active: bool | None = None,
+    limit: int = Query(default=200, ge=1, le=1000),
+    session: Session = Depends(get_session),
+) -> list[PitchMixAlertRead]:
+    """Persisted pitch-mix signals, newest first."""
+    rows = repository.list_pitch_mix_alerts(
+        session, game_id=game_id, pitcher_id=pitcher_id, active=active, limit=limit
+    )
+    return [PitchMixAlertRead.model_validate(row) for row in rows]
+
+
 @router.post("/replay", response_model=ReplayReport, status_code=status.HTTP_200_OK)
 def trigger_replay(fixture_path: str | None = None) -> ReplayReport:
     """Replay a historical fixture through the pipeline. Development/demo only.
@@ -99,7 +118,10 @@ def trigger_replay(fixture_path: str | None = None) -> ReplayReport:
 
 
 @router.post("/live/sync", response_model=LiveSyncReport)
-def sync_live(request: LiveSyncRequest) -> LiveSyncReport:
+def sync_live(
+    request: LiveSyncRequest,
+    pitch_source: PitchDataSource = Depends(get_pitch_source),
+) -> LiveSyncReport:
     """Fetch one MLB snapshot and ingest completed PAs for watched players."""
     source = LiveSource(
         game_id=request.game_id,
@@ -113,12 +135,58 @@ def sync_live(request: LiveSyncRequest) -> LiveSyncReport:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except LiveSourceError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    pitch_mix_alerts_upserted = 0
+    pitch_mix_error: str | None = None
+    if request.pitcher_ids:
+        try:
+            payload = source.fetch_snapshot()
+            game_date = _game_date_from_payload(payload)
+            with SessionFactory() as session:
+                for pitcher_id in request.pitcher_ids:
+                    comparison = build_pitcher_comparison(
+                        request.game_id,
+                        pitcher_id,
+                        game_date - timedelta(days=366),
+                        game_date - timedelta(days=1),
+                        pitch_source,
+                        live_payload=payload,
+                    )
+                    pitch_mix_alerts_upserted += len(
+                        repository.upsert_pitch_mix_signals(
+                            session,
+                            game_id=source.game_id,
+                            pitcher_id=pitcher_id,
+                            pitcher_name=comparison.pitcher_name or f"Pitcher {pitcher_id}",
+                            team_name=None,
+                            signals=comparison.signals,
+                            live_total_pitches=comparison.live_total_pitches,
+                        )
+                    )
+                session.commit()
+        except Exception as exc:  # Pitch-mix signals must never block PA ingestion.
+            pitch_mix_error = str(exc)
+
     return LiveSyncReport(
         **report.model_dump(),
         game_id=source.game_id,
         game_state=source.game_state,
         game_status=source.game_status,
+        pitch_mix_alerts_upserted=pitch_mix_alerts_upserted,
+        pitch_mix_error=pitch_mix_error,
     )
+
+
+def _game_date_from_payload(payload: dict) -> date_cls:
+    """Use MLB's official game date when present, otherwise today's date."""
+    game_data = payload.get("gameData")
+    datetime_data = game_data.get("datetime") if isinstance(game_data, dict) else None
+    official_date = datetime_data.get("officialDate") if isinstance(datetime_data, dict) else None
+    if isinstance(official_date, str):
+        try:
+            return date_cls.fromisoformat(official_date)
+        except ValueError:
+            pass
+    return date_cls.today()
 
 
 @router.get("/live/games", response_model=list[GameSummary])

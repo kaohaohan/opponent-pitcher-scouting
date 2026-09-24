@@ -47,10 +47,13 @@ Player Watch opens on the games in progress right now. Each live card shows
 the score, inning, outs, and current pitcher; one click opens that pitcher's
 analysis: today's pitch usage and velocity next to his Statcast baseline
 (default: the 365 days before the game), with backend-computed WATCH / ALERT
-signals for changes worth a look. Monitoring starts automatically while the
-game is live, and a banner appears when a new pitcher enters. Upcoming games
-list probable starters (baseline-only view), completed games open as a
-full-game comparison, and a manual game-ID entry remains under *Advanced*.
+signals for changes worth a look. Live discovery follows the game's current
+pitcher, while analysis pages remain pinned to the selected pitcher to preserve
+comparison context; if the mound changes, the analysis page shows the current
+pitcher with a one-click handoff. Monitoring starts automatically while the
+game is live. Upcoming games list probable starters (baseline-only view),
+completed games open as a full-game comparison, and a manual game-ID entry
+remains under *Advanced*.
 
 Before first pitch, the **Pregame** page builds the same baseline into a
 pitch-mix, velocity, and count-tendency scouting brief.
@@ -138,7 +141,7 @@ Gemini.
   Statcast baseline cache
 - Defensive MLB/Statcast parsing — UTF-8 BOM handling, pitchouts and
   intentional balls excluded from the pitch mix
-- Role-aware batter/pitcher monitoring and alerting
+- Pitcher-focused monitoring, event alerts, and persisted pitch-mix signals
 - Live vs. pregame pitch-mix comparison, reconciling Statcast's short pitch
   codes against the MLB live feed's inconsistent naming
 - Frontend live-monitoring session persists across route navigation
@@ -275,7 +278,14 @@ stay visible but flagged instead of being dropped or silently trusted.
 **F. Gemini narrates, on demand.** The scouting note only cites
 backend-computed signals, frames WATCH-level changes as early, never
 speculates about causes, and is generated only when the user asks — polling
-never calls Gemini.
+never calls Gemini. Gemini generation is protected by a short in-process
+cooldown/cache for the same game, pitcher, baseline window, and live
+comparison state; deterministic analysis remains available independently of
+the LLM.
+
+**G. Location filters are visual only.** Pitch-location filters affect the
+strike-zone visualization only; global scouting signals remain unfiltered to
+avoid hiding relevant usage or velocity changes.
 
 </details>
 
@@ -313,18 +323,19 @@ CI runs the same checks on every push and pull request via
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `GET` | `/api/players` | Batter-oriented list of players we have seen plate appearances for |
+| `GET` | `/api/players` | Stored player list, retained for the event API |
 | `GET` | `/api/events` | Stored plate appearances. Filters: `game_id`, `batter_id`, `pitcher_id`, `limit` |
 | `GET` | `/api/alerts` | Alerts, newest first. Filters: `rule_type`, `subject_role`, `limit` |
+| `GET` | `/api/pitch-mix-alerts` | Persisted pitcher usage/velocity signals. Filters: `game_id`, `pitcher_id`, `active`, `limit` |
 | `POST` | `/api/replay` | Development/demo only. Replays a fixture through the pipeline |
 | `GET` | `/api/live/games?date=YYYY-MM-DD` | Game summaries for a date: score, state, inning, outs, current pitcher (live only), probable pitchers |
 | `GET` | `/api/live/games/{game_id}/summary` | One game's summary from its live feed (header + pitcher-change detection) |
 | `GET` | `/api/live/games/{game_id}/participants` | Read-only MLB game participant discovery |
-| `POST` | `/api/live/sync` | Fetches one MLB live snapshot and ingests completed PAs for selected `batter_ids`/`pitcher_ids` |
+| `POST` | `/api/live/sync` | Fetches one MLB live snapshot and ingests completed PAs for selected pitchers; the role-aware backend input remains compatible with `batter_ids` |
 | `GET` | `/api/pregame/pitchers/search?query=...` | Pitcher name search / MLBAM discovery |
 | `POST` | `/api/pregame/brief` | Statcast pitch-usage aggregation + Gemini-written scouting brief. Body: `pitcher_id`, `start_date`, `end_date` |
 | `GET` | `/api/live/games/{game_id}/pitchers/{pitcher_id}/comparison` | Deterministic baseline-vs-today comparison plus WATCH/ALERT `signals`. Never calls Gemini |
-| `POST` | `/api/live/games/{game_id}/pitchers/{pitcher_id}/comparison/note` | On-demand Gemini explanation of that same comparison |
+| `POST` | `/api/live/games/{game_id}/pitchers/{pitcher_id}/comparison/note` | On-demand Gemini explanation of that same comparison; repeated requests for the same state reuse a short in-process cache |
 | `GET` | `/health` | Liveness |
 
 Interactive docs at `/docs`.

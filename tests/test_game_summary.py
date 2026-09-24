@@ -110,8 +110,16 @@ def test_summarize_live_feed_lists_each_teams_pitchers_in_order_of_appearance():
             "away": {
                 "pitchers": [111, 333],
                 "players": {
-                    "ID111": {"person": {"id": 111, "fullName": "Away Starter"}},
-                    "ID333": {"person": {"id": 333, "fullName": "Away Reliever"}},
+                    "ID111": {
+                        "person": {"id": 111, "fullName": "Away Starter"},
+                        "stats": {
+                            "pitching": {"numberOfPitches": 78, "inningsPitched": "5.0"}
+                        },
+                    },
+                    "ID333": {
+                        "person": {"id": 333, "fullName": "Away Reliever"},
+                        "stats": {"pitching": {}},
+                    },
                 },
             },
             "home": {
@@ -125,6 +133,16 @@ def test_summarize_live_feed_lists_each_teams_pitchers_in_order_of_appearance():
 
     assert [p.name for p in summary.pitchers_used["away"]] == ["Away Starter", "Away Reliever"]
     assert [p.id for p in summary.pitchers_used["home"]] == [542881]
+    starter, reliever = summary.pitchers_used["away"]
+    assert starter.pitches == 78
+    assert starter.innings_pitched == "5.0"
+    # A reliever with an empty `stats.pitching` (just entered) has no line
+    # yet — `None`, never `0`.
+    assert reliever.pitches is None
+    assert reliever.innings_pitched is None
+    # No `stats` key at all (the home pitcher entry above) behaves the same.
+    assert summary.pitchers_used["home"][0].pitches is None
+    assert summary.pitchers_used["home"][0].innings_pitched is None
 
 
 def test_summarize_live_feed_without_boxscore_has_no_pitchers_used():

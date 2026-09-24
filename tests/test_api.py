@@ -40,6 +40,7 @@ def test_endpoints_are_empty_before_a_replay(client):
     assert client.get("/api/players").json() == []
     assert client.get("/api/events").json() == []
     assert client.get("/api/alerts").json() == []
+    assert client.get("/api/pitch-mix-alerts").json() == []
 
 
 def test_replay_endpoint_reports_what_it_ingested(client):
