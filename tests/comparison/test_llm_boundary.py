@@ -121,3 +121,36 @@ def test_gemini_provider_parses_a_well_formed_structured_response(comparison, mo
     assert note.summary == "Leaning heavily on the slider tonight."
     assert note.notable_changes[0].metric == "slider_usage"
     assert note.sample_note == "Small live sample so far."
+
+
+def _keys(node):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield key
+            yield from _keys(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _keys(item)
+
+
+def test_response_schema_sent_to_gemini_has_no_additional_properties(comparison, monkeypatch):
+    """The Gemini API rejects `additionalProperties` (pydantic's rendering of
+    `extra="forbid"`) with a 400, so the schema handed to the SDK must not
+    carry it — while the reply is still parsed through the strict model."""
+    monkeypatch.setattr(
+        gemini_module, "settings", dataclasses.replace(settings, gemini_api_key="test-key")
+    )
+    captured = {}
+
+    class _Models:
+        def generate_content(self, **kwargs):
+            captured.update(kwargs)
+            return type("R", (), {"text": '{"summary": "s", "sample_note": "n"}'})()
+
+    fake_client = type("C", (), {"models": _Models()})()
+    monkeypatch.setattr(gemini_module.genai, "Client", lambda **_kwargs: fake_client)
+
+    GeminiComparisonProvider().generate_note(comparison)
+
+    schema = captured["config"].response_schema.model_json_schema()
+    assert "additionalProperties" not in set(_keys(schema))

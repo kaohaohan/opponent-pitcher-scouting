@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from google import genai
 from google.genai import types
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from ...config import settings
 from ...pregame.llm.gemini import GeminiConfigurationError, GeminiRequestError
@@ -67,6 +67,26 @@ class GeminiMalformedResponseError(RuntimeError):
     mode: the pregame brief has no response schema to violate."""
 
 
+class _NotableChangeSchema(BaseModel):
+    metric: str
+    description: str
+
+
+class _ComparisonNoteSchema(BaseModel):
+    """The shape sent to Gemini as `response_schema`.
+
+    Mirrors `ComparisonNote` but deliberately omits `extra="forbid"`:
+    pydantic renders that as `additionalProperties: false`, which the Gemini
+    API rejects (400 "Unknown name additional_properties"). The reply is
+    still validated against the strict `ComparisonNote` afterwards, so
+    nothing is loosened on our side of the boundary.
+    """
+
+    summary: str
+    notable_changes: list[_NotableChangeSchema] = Field(default_factory=list)
+    sample_note: str
+
+
 class GeminiComparisonProvider(ComparisonNoteProvider):
     def __init__(self, model: str = DEFAULT_MODEL) -> None:
         self._model = model
@@ -86,7 +106,7 @@ class GeminiComparisonProvider(ComparisonNoteProvider):
                 config=types.GenerateContentConfig(
                     system_instruction=_SYSTEM_INSTRUCTION,
                     response_mime_type="application/json",
-                    response_schema=ComparisonNote,
+                    response_schema=_ComparisonNoteSchema,
                     http_options=types.HttpOptions(timeout=_REQUEST_TIMEOUT_MS),
                 ),
             )
