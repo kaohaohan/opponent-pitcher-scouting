@@ -9,18 +9,27 @@ A live opponent-pitcher monitoring tool that compares current pitch behavior
 against the pitcher's historical Statcast baseline and automatically surfaces
 meaningful changes — deterministic stats first, Gemini for narration only.
 
-![Opponent Pitcher Scouting — pregame brief](docs/images/pregame-scouting.png)
+![Pitcher Analysis — today vs. baseline with WATCH/ALERT signals](docs/images/live-pitcher-watch.png)
 
 **[Try the live demo →](https://taiwanese-baseball-watch.vercel.app)**
 Open **Player Watch**, pick a live game's current pitcher, and see today vs.
 his baseline — or open any completed game from the Final list.
 
 <details>
-<summary>Live pitcher monitoring screenshot</summary>
+<summary>Live Now discovery screenshot</summary>
 
-![Live Pitcher Watch — baseline vs. live](docs/images/live-pitcher-watch.png)
+![Player Watch — Live Now cards with score, inning/outs, and current pitcher](docs/images/player-watch-live-now.png)
 
-A pitcher's live outing compared against his Statcast baseline. (Screenshot predates the Player Watch redesign.)
+Player Watch's landing view: every game live right now, one click from its pitcher's analysis.
+
+</details>
+
+<details>
+<summary>Pregame scouting brief screenshot</summary>
+
+![Opponent Pitcher Scouting — pregame brief](docs/images/pregame-scouting.png)
+
+The pregame brief for a probable starter: pitch mix, velocity, and count tendencies from the same Statcast baseline.
 
 </details>
 
