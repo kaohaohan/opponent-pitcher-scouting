@@ -2,6 +2,8 @@ import type {
   AlertDto,
   ComparisonNoteDto,
   GameParticipantDto,
+  GameSummaryDto,
+  PitcherRefDto,
   PlateAppearanceDto,
   PlayerDto,
   PregameBriefResponseDto,
@@ -9,6 +11,7 @@ import type {
   PregameLiveComparisonDto,
   PitchCountUsageDto,
   PitchTypeUsageDto,
+  SignalDto,
 } from "@/lib/api";
 import type {
   AlertData,
@@ -16,12 +19,15 @@ import type {
   BriefSectionData,
   ComparisonNoteData,
   CountBucketData,
+  GameSummaryData,
   PitcherProfileData,
+  PitcherRefData,
   PitchComparisonRowData,
   PitchUsageData,
   PlayerWatchData,
   PlateAppearanceData,
   PregameLiveComparisonData,
+  SignalData,
 } from "@/lib/types";
 
 const pitchNames: Record<string, string> = {
@@ -381,6 +387,92 @@ export function toAlertsSummary(
   };
 }
 
+function toPitcherRef(ref: PitcherRefDto | null): PitcherRefData | null {
+  return ref ? { id: ref.id, name: ref.name } : null;
+}
+
+function ordinal(value: number): string {
+  const remainder10 = value % 10;
+  const remainder100 = value % 100;
+  if (remainder10 === 1 && remainder100 !== 11) return `${value}st`;
+  if (remainder10 === 2 && remainder100 !== 12) return `${value}nd`;
+  if (remainder10 === 3 && remainder100 !== 13) return `${value}rd`;
+  return `${value}th`;
+}
+
+function formatStartTime(startTime: string | null): string | null {
+  if (!startTime) return null;
+  const parsed = new Date(startTime);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(parsed);
+}
+
+/**
+ * A short, human label for a game's current moment, e.g. "Top 5th · 1 Out",
+ * "Final", or a formatted start time for an upcoming game. Only ever
+ * combines parts that are actually known — a missing inning/outs/start
+ * time is omitted rather than rendered as a placeholder.
+ */
+function gameStateLabel(summary: GameSummaryDto): string {
+  if (summary.state === "final") return "Final";
+  if (summary.state === "live") {
+    const parts: string[] = [];
+    if (summary.inning !== null && summary.inning_half !== null) {
+      const half = summary.inning_half === "top" ? "Top" : "Bottom";
+      parts.push(`${half} ${ordinal(summary.inning)}`);
+    } else if (summary.inning_state) {
+      parts.push(summary.inning_state);
+    }
+    if (summary.outs !== null) {
+      parts.push(`${summary.outs} Out${summary.outs === 1 ? "" : "s"}`);
+    }
+    return parts.length > 0 ? parts.join(" · ") : "Live";
+  }
+  if (summary.state === "upcoming") {
+    const time = formatStartTime(summary.start_time);
+    return time ? `Scheduled · ${time}` : "Scheduled";
+  }
+  return summary.status;
+}
+
+export function toGameSummary(dto: GameSummaryDto): GameSummaryData {
+  return {
+    gameId: dto.game_id,
+    gameDate: dto.game_date,
+    startTime: dto.start_time,
+    status: dto.status,
+    state: dto.state,
+    awayTeam: { id: dto.away_team.id, name: dto.away_team.name },
+    homeTeam: { id: dto.home_team.id, name: dto.home_team.name },
+    awayScore: dto.away_score,
+    homeScore: dto.home_score,
+    inning: dto.inning,
+    inningHalf: dto.inning_half,
+    inningState: dto.inning_state,
+    outs: dto.outs,
+    currentPitcher: toPitcherRef(dto.current_pitcher),
+    currentPitcherTeamSide: dto.current_pitcher_team_side,
+    probablePitchers: {
+      away: toPitcherRef(dto.probable_pitchers.away),
+      home: toPitcherRef(dto.probable_pitchers.home),
+    },
+    stateLabel: gameStateLabel(dto),
+  };
+}
+
+function toSignal(signal: SignalDto): SignalData {
+  return {
+    level: signal.level,
+    metric: signal.metric,
+    pitchType: signal.pitch_type,
+    pitchName: signal.pitch_name,
+    baselineValue: signal.baseline_value,
+    todayValue: signal.today_value,
+    delta: signal.delta,
+    sampleBasis: signal.sample_basis,
+  };
+}
+
 function toComparisonRow(row: PregameLiveComparisonDto["rows"][number]): PitchComparisonRowData {
   return {
     pitchType: row.pitch_type,
@@ -414,6 +506,7 @@ export function toPregameLiveComparison(
     liveTotalPitches: dto.live_total_pitches,
     overallLiveStatus: dto.overall_live_status,
     rows: dto.rows.map(toComparisonRow),
+    signals: dto.signals.map(toSignal),
     limitations: dto.limitations,
   };
 }

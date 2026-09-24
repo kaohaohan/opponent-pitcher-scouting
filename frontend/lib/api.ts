@@ -185,20 +185,40 @@ export function getGameParticipants(gameId: number): Promise<GameParticipantsDto
   return fetchJson<GameParticipantsDto>(`/api/live/games/${gameId}/participants`);
 }
 
-export interface ScheduleGameDto {
-  game_id: string;
-  game_date: string;
-  away_team: TeamDto;
-  home_team: TeamDto;
-  status: string;
-  start_time: string | null;
-  away_score: number | null;
-  home_score: number | null;
+export interface PitcherRefDto {
+  id: number;
+  name: string;
 }
 
-export function getSchedule(date: string): Promise<ScheduleGameDto[]> {
+export interface GameSummaryDto {
+  game_id: string;
+  game_date: string;
+  start_time: string | null;
+  status: string;
+  state: "live" | "upcoming" | "final" | "other";
+  away_team: TeamDto;
+  home_team: TeamDto;
+  away_score: number | null;
+  home_score: number | null;
+  inning: number | null;
+  inning_half: "top" | "bottom" | null;
+  inning_state: string | null;
+  outs: number | null;
+  current_pitcher: PitcherRefDto | null;
+  current_pitcher_team_side: "away" | "home" | null;
+  probable_pitchers: {
+    away: PitcherRefDto | null;
+    home: PitcherRefDto | null;
+  };
+}
+
+export function getSchedule(date: string): Promise<GameSummaryDto[]> {
   const params = new URLSearchParams({ date });
-  return fetchJson<ScheduleGameDto[]>(`/api/live/games?${params.toString()}`);
+  return fetchJson<GameSummaryDto[]>(`/api/live/games?${params.toString()}`);
+}
+
+export function getGameSummary(gameId: number): Promise<GameSummaryDto> {
+  return fetchJson<GameSummaryDto>(`/api/live/games/${gameId}/summary`);
 }
 
 export function syncLive(request: LiveSyncRequest): Promise<LiveSyncReport> {
@@ -248,6 +268,17 @@ export interface PregameLiveComparisonRowDto {
   is_notable: boolean;
 }
 
+export interface SignalDto {
+  level: "watch" | "alert";
+  metric: "usage" | "velocity";
+  pitch_type: string;
+  pitch_name: string | null;
+  baseline_value: number;
+  today_value: number;
+  delta: number;
+  sample_basis: number;
+}
+
 export interface PregameLiveComparisonDto {
   game_id: string;
   pitcher_id: number;
@@ -260,6 +291,7 @@ export interface PregameLiveComparisonDto {
   live_total_pitches: number;
   overall_live_status: SampleStatusDto;
   rows: PregameLiveComparisonRowDto[];
+  signals: SignalDto[];
   limitations: string[];
 }
 

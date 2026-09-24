@@ -16,6 +16,8 @@ export interface PitcherAvatarProps {
   name: string;
   size?: number;
   className?: string;
+  /** "eager" for above-the-fold headers; lists keep the lazy default. */
+  loading?: "lazy" | "eager";
 }
 
 /**
@@ -23,7 +25,13 @@ export interface PitcherAvatarProps {
  * the request fails, or the image can't be decoded — never a broken-image
  * icon.
  */
-export function PitcherAvatar({ playerId, name, size = 40, className }: PitcherAvatarProps) {
+export function PitcherAvatar({
+  playerId,
+  name,
+  size = 40,
+  className,
+  loading = "lazy",
+}: PitcherAvatarProps) {
   const [failed, setFailed] = useState(false);
   const classes = ["pitcher-avatar", className].filter(Boolean).join(" ");
 
@@ -44,7 +52,7 @@ export function PitcherAvatar({ playerId, name, size = 40, className }: PitcherA
       alt=""
       className={classes}
       height={size}
-      loading="lazy"
+      loading={loading}
       onError={() => setFailed(true)}
       src={pitcherHeadshotUrl(playerId, Math.max(size * 2, 80))}
       style={{ width: size, height: size }}

@@ -1135,94 +1135,6 @@ select:focus-visible {
   margin-bottom: 18px;
 }
 
-.game-picker {
-  margin-bottom: 18px;
-}
-
-.game-picker__date-controls {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.game-picker__date-controls input[type="date"] {
-  background: var(--surface-soft);
-  border: 1px solid var(--border-strong);
-  border-radius: 5px;
-  color: var(--text);
-  min-height: 38px;
-  padding: 7px 10px;
-}
-
-.game-picker__list {
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-  max-height: 320px;
-  overflow: auto;
-}
-
-.game-picker__row {
-  background: var(--surface-soft);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px 12px;
-  text-align: left;
-}
-
-.game-picker__row:hover {
-  background: rgba(255, 255, 255, 0.035);
-  border-color: var(--border-strong);
-}
-
-.game-picker__row.is-active {
-  background: var(--green-soft);
-  border-color: var(--green);
-}
-
-.game-picker__matchup {
-  color: var(--text);
-  font-size: 0.84rem;
-  font-weight: 700;
-}
-
-.game-picker__row.is-active .game-picker__matchup {
-  color: var(--green);
-}
-
-.game-picker__meta {
-  color: var(--text-muted);
-  font-size: 0.74rem;
-}
-
-.manual-game-id {
-  margin-top: 14px;
-}
-
-.manual-game-id summary {
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.manual-game-id .live-controls__grid {
-  margin-top: 10px;
-}
-
-.live-controls__grid--monitor {
-  grid-template-columns: auto;
-  margin-top: 14px;
-}
-
 .live-controls__grid {
   align-items: end;
   display: grid;
@@ -1230,8 +1142,7 @@ select:focus-visible {
   grid-template-columns: minmax(160px, 1fr) auto auto;
 }
 
-.field-label,
-.player-selector {
+.field-label {
   color: var(--text-muted);
   display: flex;
   flex-direction: column;
@@ -1242,28 +1153,7 @@ select:focus-visible {
   text-transform: uppercase;
 }
 
-.selected-pitcher-identity {
-  align-items: center;
-  background: var(--surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  display: flex;
-  gap: 12px;
-  padding: 10px 14px;
-}
-
-.selected-pitcher-identity strong {
-  display: block;
-  font-size: 0.9rem;
-}
-
-.selected-pitcher-identity span {
-  color: var(--text-muted);
-  font-size: 0.76rem;
-}
-
-.field-label input,
-.player-selector select {
+.field-label input {
   background: var(--surface-soft);
   border: 1px solid var(--border-strong);
   border-radius: 5px;
@@ -1282,32 +1172,6 @@ select:focus-visible {
   font-weight: 800;
   min-height: 38px;
   padding: 0 16px;
-}
-
-.live-control-status {
-  color: var(--text-dim);
-  font-size: 0.74rem;
-}
-
-.live-control-status.is-active {
-  color: var(--green);
-}
-
-.game-discovery-summary {
-  align-items: center;
-  border-top: 1px solid var(--border);
-  color: var(--text-muted);
-  display: flex;
-  font-size: 0.78rem;
-  gap: 10px;
-  justify-content: space-between;
-  margin-top: 14px;
-  padding-top: 14px;
-}
-
-.game-discovery-summary strong {
-  color: var(--text);
-  font-size: 0.86rem;
 }
 
 .role-tabs {
@@ -1367,141 +1231,6 @@ select:focus-visible {
   padding: 6px;
 }
 
-.participant-option {
-  align-items: center;
-  border-radius: 5px;
-  color: var(--text-muted);
-  display: flex;
-  font-size: 0.78rem;
-  gap: 8px;
-  min-height: 32px;
-  padding: 5px 7px;
-}
-
-.participant-option:hover {
-  background: rgba(255, 255, 255, 0.035);
-  color: var(--text);
-}
-
-.participant-option input {
-  accent-color: var(--green);
-  height: 15px;
-  width: 15px;
-}
-
-.watchlist-summary {
-  color: var(--text-muted);
-  font-size: 0.74rem;
-  margin: 10px 0 0;
-}
-
-.participant-option__name {
-  align-items: center;
-  background: none;
-  border: 0;
-  color: inherit;
-  cursor: pointer;
-  display: flex;
-  flex: 1;
-  font: inherit;
-  gap: 6px;
-  justify-content: space-between;
-  padding: 0;
-  text-align: left;
-}
-
-.participant-option__name:hover {
-  color: var(--text);
-}
-
-.participant-option.is-active {
-  background: var(--green-soft);
-}
-
-.participant-option.is-active .participant-option__name {
-  color: var(--green);
-  font-weight: 700;
-}
-
-.participant-option__badge {
-  background: var(--green);
-  border-radius: 3px;
-  color: #07110c;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  padding: 1px 5px;
-  text-transform: uppercase;
-}
-
-.selected-pitcher-identity .secondary-button {
-  margin-left: auto;
-}
-
-.player-selector {
-  margin: 0 0 18px;
-  max-width: 360px;
-}
-
-.watch-layout {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.8fr);
-}
-
-.watch-hero {
-  align-items: center;
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: 1fr auto auto;
-  overflow: hidden;
-  padding: 20px;
-}
-
-.watch-hero__identity {
-  align-items: center;
-  display: flex;
-  gap: 14px;
-}
-
-.player-number {
-  align-items: center;
-  background: #142a38;
-  border: 1px solid #294a5f;
-  border-radius: 5px;
-  color: #a9d0e7;
-  display: flex;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 1rem;
-  font-weight: 800;
-  height: 50px;
-  justify-content: center;
-  width: 50px;
-}
-
-.watch-hero h2 {
-  font-size: 1.35rem;
-  line-height: 1.1;
-  margin: 0;
-}
-
-.watch-hero__identity p:last-child {
-  color: var(--text-muted);
-  font-size: 0.76rem;
-  margin: 5px 0 0;
-}
-
-.game-state {
-  align-items: center;
-  border-left: 1px solid var(--border);
-  color: var(--text-muted);
-  display: flex;
-  font-size: 0.76rem;
-  gap: 9px;
-  margin-left: 24px;
-  padding-left: 24px;
-}
-
 .live-indicator {
   align-items: center;
   color: #91dcaf;
@@ -1522,94 +1251,9 @@ select:focus-visible {
   width: 6px;
 }
 
-.today-line {
-  align-items: flex-end;
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  margin-left: 28px;
-  padding-left: 28px;
-}
-
-.today-line span {
-  color: var(--text-dim);
-  font-size: 0.66rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.today-line strong {
-  font-size: 1.05rem;
-  margin-top: 2px;
-}
-
-.latest-pa,
 .triggered-rules,
 .recent-pa {
   overflow: hidden;
-}
-
-.result-callout {
-  align-items: center;
-  border-bottom: 1px solid var(--border);
-  border-top: 1px solid var(--border);
-  display: flex;
-  gap: 14px;
-  margin: 0 20px;
-  padding: 18px 0;
-}
-
-.result-callout__mark {
-  align-items: center;
-  background: var(--green-soft);
-  border: 1px solid rgba(82, 197, 138, 0.36);
-  border-radius: 50%;
-  color: #a4e7c1;
-  display: flex;
-  font-size: 0.73rem;
-  font-weight: 850;
-  height: 44px;
-  justify-content: center;
-  width: 44px;
-}
-
-.result-callout strong {
-  font-size: 1rem;
-}
-
-.result-callout p {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  margin: 3px 0 0;
-}
-
-.measurement-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  padding: 16px 20px 20px;
-}
-
-.measurement-grid > div {
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding-left: 14px;
-}
-
-.measurement-grid > div:first-child {
-  border-left: 0;
-  padding-left: 0;
-}
-
-.measurement-grid span {
-  color: var(--text-dim);
-  font-size: 0.64rem;
-  text-transform: uppercase;
-}
-
-.measurement-grid strong {
-  font-size: 0.84rem;
-  margin-top: 3px;
 }
 
 .rule-list {
@@ -1649,17 +1293,6 @@ select:focus-visible {
   color: var(--text-muted);
   font-size: 0.7rem;
   margin: 2px 0 0;
-}
-
-.recent-pa {
-  grid-column: 1 / -1;
-}
-
-.comparison-section {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  grid-column: 1 / -1;
 }
 
 .comparison-date-form {
@@ -1958,18 +1591,8 @@ select:focus-visible {
     grid-column: 1 / -1;
   }
 
-  .watch-layout {
-    grid-template-columns: 1fr;
-  }
-
   .participant-groups {
     grid-template-columns: 1fr;
-  }
-
-  .latest-pa,
-  .triggered-rules,
-  .recent-pa {
-    grid-column: 1;
   }
 }
 
@@ -2016,17 +1639,6 @@ select:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .game-picker__date-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .game-discovery-summary {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
-  }
-
   .pitch-row {
     gap: 10px;
     grid-template-columns: 1fr 1fr;
@@ -2062,36 +1674,6 @@ select:focus-visible {
     border-top: 1px solid var(--border);
   }
 
-  .watch-hero {
-    align-items: start;
-    gap: 16px;
-    grid-template-columns: 1fr;
-  }
-
-  .game-state,
-  .today-line {
-    align-items: flex-start;
-    border-left: 0;
-    border-top: 1px solid var(--border);
-    margin: 0;
-    padding: 14px 0 0;
-  }
-
-  .today-line {
-    flex-direction: row;
-    gap: 12px;
-  }
-
-  .measurement-grid {
-    grid-template-columns: 1fr 1fr;
-    row-gap: 18px;
-  }
-
-  .measurement-grid > div:nth-child(3) {
-    border-left: 0;
-    padding-left: 0;
-  }
-
   .alerts-summary {
     align-items: start;
     gap: 18px;
@@ -2122,6 +1704,595 @@ select:focus-visible {
     flex-direction: row;
     grid-column: 2;
     text-align: left;
+  }
+}
+
+/* ==========================================================================
+   Game discovery (Player Watch home page)
+   ========================================================================== */
+
+.game-discovery {
+  display: grid;
+  gap: 18px;
+}
+
+.game-discovery-section {
+  padding-bottom: 18px;
+}
+
+.date-nav {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 18px 16px;
+}
+
+.date-nav input[type="date"] {
+  background: var(--surface-soft);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  color: var(--text);
+  min-height: 38px;
+  padding: 7px 10px;
+}
+
+/* Live Now */
+
+.live-game-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  padding: 0 18px 18px;
+}
+
+.live-game-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+.live-game-card__status {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.live-game-card__state {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.live-game-card__score {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.live-game-card__team {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.live-game-card__team:last-child {
+  text-align: right;
+}
+
+.live-game-card__runs {
+  color: var(--text);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.live-game-card__pitching {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.live-game-card__pitcher {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.live-game-card__pitcher strong {
+  font-size: 0.9rem;
+}
+
+.live-game-card__pitcher-unknown {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.live-game-card__cta {
+  display: block;
+  margin-top: auto;
+  text-align: center;
+  text-decoration: none;
+}
+
+button.live-game-card__cta:disabled {
+  cursor: not-allowed;
+}
+
+/* Upcoming */
+
+.upcoming-list {
+  display: grid;
+  gap: 2px;
+  padding: 0 18px 18px;
+}
+
+.upcoming-row {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 90px 1fr auto;
+  padding: 10px 0;
+}
+
+.upcoming-row:first-child {
+  border-top: 0;
+}
+
+.upcoming-row__time {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.upcoming-row__matchup {
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.upcoming-row__pitchers {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-self: end;
+}
+
+.upcoming-row__vs {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.probable-pitcher {
+  color: var(--blue);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.probable-pitcher:hover {
+  text-decoration: underline;
+}
+
+.probable-pitcher--tbd {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+/* Final (collapsed) */
+
+.game-discovery-final {
+  padding: 15px 18px 18px;
+}
+
+.game-discovery-final__summary {
+  align-items: baseline;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  list-style: none;
+}
+
+.game-discovery-final__summary::-webkit-details-marker {
+  display: none;
+}
+
+.game-discovery-final__summary .section-kicker {
+  margin: 0;
+}
+
+.game-discovery-final__title {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.game-discovery-final__body {
+  margin-top: 14px;
+}
+
+.final-list {
+  display: grid;
+  gap: 2px;
+}
+
+.final-row {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.final-list .final-row:first-child {
+  border-top: 0;
+}
+
+.final-row__score {
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.final-row__pitchers {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.game-discovery-other {
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.game-discovery-other__row {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 4px 0 0;
+}
+
+/* Advanced / manual game entry */
+
+.manual-game-entry {
+  color: var(--text-muted);
+  padding: 4px 2px;
+}
+
+.manual-game-entry summary {
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.manual-game-entry__body {
+  margin-top: 12px;
+}
+
+.manual-game-entry__pitcher {
+  color: var(--text);
+  display: block;
+  font-size: 0.8rem;
+  padding: 6px 5px;
+  text-decoration: none;
+}
+
+.manual-game-entry__pitcher:hover {
+  color: var(--green);
+}
+
+@media (max-width: 900px) {
+  .live-game-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .upcoming-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .upcoming-row__pitchers {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .date-nav {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .final-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* ==========================================================================
+   Pitcher analysis
+   ========================================================================== */
+
+.pitcher-analysis {
+  display: grid;
+  gap: 18px;
+}
+
+.pitcher-analysis__back {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.pitcher-analysis__back:hover {
+  color: var(--text);
+}
+
+.pitcher-analysis__footer {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  margin: 0;
+  text-align: center;
+}
+
+/* Header */
+
+.pitcher-analysis-header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 20px;
+}
+
+.pitcher-analysis-header__identity {
+  align-items: center;
+  display: flex;
+  flex: 1 1 220px;
+  gap: 14px;
+}
+
+.pitcher-analysis-header__identity h1 {
+  font-size: 1.35rem;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.pitcher-analysis-header__identity p:last-child {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin: 5px 0 0;
+}
+
+.pitcher-analysis-header__state {
+  align-items: center;
+  border-left: 1px solid var(--border);
+  color: var(--text-muted);
+  display: flex;
+  font-size: 0.78rem;
+  gap: 9px;
+  padding-left: 18px;
+}
+
+.pitcher-analysis-header__pitches {
+  align-items: flex-end;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding-left: 18px;
+}
+
+.pitcher-analysis-header__pitches span {
+  color: var(--text-dim);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pitcher-analysis-header__pitches strong {
+  font-size: 1.05rem;
+  margin-top: 2px;
+}
+
+/* Pitcher-change banner / final tag */
+
+.pitcher-switch-banner {
+  align-items: center;
+  background: var(--amber-soft);
+  border: 1px solid rgba(227, 182, 93, 0.3);
+  border-radius: var(--radius);
+  color: #f1cf8b;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  font-weight: 650;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 16px;
+}
+
+.pitcher-final-tag {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+  padding: 12px 16px;
+}
+
+/* Today vs Baseline table: grouped Usage / Velocity column headers, and
+   per-cell signal tinting (matched by pitch_type + metric in
+   `PitchMixComparison`). */
+
+.comparison-table__group {
+  text-align: center;
+}
+
+.comparison-table__group--velocity {
+  border-left: 1px solid var(--border);
+}
+
+.comparison-table td[data-signal="watch"] {
+  background: var(--amber-soft);
+  color: #f1cf8b;
+}
+
+.comparison-table td[data-signal="alert"] {
+  background: var(--red-soft);
+  color: #ffafa5;
+}
+
+/* Signals panel */
+
+.signal-card-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  padding: 16px 18px;
+}
+
+.signal-card {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+}
+
+.signal-card[data-level="alert"] {
+  border-color: rgba(233, 118, 104, 0.34);
+}
+
+.signal-card[data-level="watch"] {
+  border-color: rgba(227, 182, 93, 0.3);
+}
+
+.signal-card__meta {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.signal-card__level {
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+}
+
+.signal-card__level[data-level="alert"] {
+  background: var(--red-soft);
+  color: #ffafa5;
+}
+
+.signal-card__level[data-level="watch"] {
+  background: var(--amber-soft);
+  color: #f1cf8b;
+}
+
+.signal-card__basis {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+}
+
+.signal-card__title {
+  font-size: 0.9rem;
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.signal-card__values {
+  color: var(--text);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.signal-card__delta {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.signal-card__note {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  margin: 0;
+}
+
+.signals-panel__footer {
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  margin: 0;
+  padding: 12px 18px;
+}
+
+/* Scouting note */
+
+.comparison-note__meta {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  margin: 0;
+  padding: 0 18px 12px;
+}
+
+/* Baseline settings */
+
+.baseline-settings {
+  color: var(--text-muted);
+  padding: 4px 2px;
+}
+
+.baseline-settings summary {
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.baseline-settings .comparison-date-form {
+  margin-top: 12px;
+}
+
+/* Recent PAs / PA rule alerts */
+
+.pitcher-activity {
+  display: grid;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .pitcher-analysis-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pitcher-analysis-header__pitches,
+  .pitcher-analysis-header__state {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 12px;
+    width: 100%;
+  }
+
+  .pitcher-analysis-header__pitches {
+    align-items: flex-start;
   }
 }
 

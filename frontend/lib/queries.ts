@@ -8,11 +8,13 @@ import {
   getAlerts,
   getEvents,
   getGameParticipants,
+  getGameSummary,
   getPlayers,
   getPregameLiveComparison,
   getSchedule,
   searchPitchers,
   syncLive,
+  type GameSummaryDto,
   type LiveSyncRequest,
   type PregameBriefRequest,
 } from "@/lib/api";
@@ -57,6 +59,25 @@ export function useSchedule(date: string) {
     queryFn: () => getSchedule(date),
     staleTime: 30 * 1000,
     retry: 1,
+    refetchInterval: (query) =>
+      query.state.data?.some((game) => game.state === "live") ? 30 * 1000 : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+export function useGameSummary(gameId: number | null, options?: { live?: boolean }) {
+  const live = options?.live ?? true;
+  return useQuery({
+    queryKey: ["live-game-summary", gameId ?? "idle"],
+    queryFn: () => getGameSummary(gameId as number),
+    enabled: gameId !== null && gameId > 0,
+    staleTime: 10 * 1000,
+    retry: 1,
+    refetchInterval: (query) =>
+      live && (query.state.data as GameSummaryDto | undefined)?.state === "live"
+        ? 15 * 1000
+        : false,
+    refetchIntervalInBackground: false,
   });
 }
 

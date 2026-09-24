@@ -59,10 +59,6 @@ function writeStoredSession(session: StoredSession) {
   }
 }
 
-function unique(values: number[]): number[] {
-  return [...new Set(values)];
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Live sync failed.";
 }
@@ -80,10 +76,14 @@ interface LiveMonitoringContextValue {
   lastGameStatus: string | null;
   /** The backend-confirmed game id string, set once a sync has completed. */
   syncedGameId: string | null;
-  loadGame: (gameId: number) => void;
-  toggleBatter: (id: number) => void;
-  togglePitcher: (id: number) => void;
-  startMonitoring: () => void;
+  /**
+   * Load `gameId`, select only `pitcherId`, and start monitoring in one
+   * step — the entry point the Pitcher Analysis view uses to auto-monitor
+   * a live game, and to re-target when the user switches pitchers.
+   * Overrides any monitoring already in progress for a different game or
+   * pitcher.
+   */
+  watchPitcher: (gameId: number, pitcherId: number) => void;
   stopMonitoring: () => void;
 }
 
@@ -186,39 +186,31 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  const loadGame = useCallback((nextGameId: number) => {
-    if (monitoringRef.current) return;
-    setGameId(nextGameId);
-    setSelectedBatterIds([]);
-    setSelectedPitcherIds([]);
-    setSyncedGameId(null);
-    setLastGameState(null);
-    setLastGameStatus(null);
-    setSyncMessage("Loading game participants...");
-  }, []);
-
-  const toggleBatter = useCallback((id: number) => {
-    setSelectedBatterIds((values) => (values.includes(id) ? values.filter((value) => value !== id) : [...values, id]));
-  }, []);
-
-  const togglePitcher = useCallback((id: number) => {
-    setSelectedPitcherIds((values) => (values.includes(id) ? values.filter((value) => value !== id) : [...values, id]));
-  }, []);
-
-  const startMonitoring = useCallback(() => {
-    if (monitoringRef.current) return;
-    if (gameId === null || selectedBatterIds.length + selectedPitcherIds.length === 0) {
-      setSyncMessage("Choose at least one batter or pitcher before monitoring.");
-      return;
-    }
-    const batterIds = unique(selectedBatterIds);
-    const pitcherIds = unique(selectedPitcherIds);
-    monitoringRef.current = true;
-    setIsMonitoring(true);
-    setLastSyncError(null);
-    setSyncMessage("Syncing MLB snapshot...");
-    void runSync(gameId, batterIds, pitcherIds);
-  }, [gameId, selectedBatterIds, selectedPitcherIds, runSync]);
+  // The only entry point into monitoring now that Player Watch goes
+  // straight from game discovery to a single pitcher: load the game,
+  // select just that pitcher, and start syncing — all in one call, using
+  // explicit arguments rather than composing loadGame/togglePitcher/
+  // startMonitoring, whose state updates wouldn't be visible to each
+  // other until the next render. Safe to call again for a different
+  // pitcher (or game) while already monitoring — it cancels the pending
+  // sync timer and re-targets immediately.
+  const watchPitcher = useCallback(
+    (targetGameId: number, pitcherId: number) => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setGameId(targetGameId);
+      setSelectedBatterIds([]);
+      setSelectedPitcherIds([pitcherId]);
+      setSyncedGameId(null);
+      setLastGameState(null);
+      setLastGameStatus(null);
+      setLastSyncError(null);
+      setSyncMessage("Syncing MLB snapshot...");
+      monitoringRef.current = true;
+      setIsMonitoring(true);
+      void runSync(targetGameId, [], [pitcherId]);
+    },
+    [runSync],
+  );
 
   const stopMonitoring = useCallback(() => {
     monitoringRef.current = false;
@@ -240,10 +232,7 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
       lastGameState,
       lastGameStatus,
       syncedGameId,
-      loadGame,
-      toggleBatter,
-      togglePitcher,
-      startMonitoring,
+      watchPitcher,
       stopMonitoring,
     }),
     [
@@ -258,10 +247,7 @@ export function LiveMonitoringProvider({ children }: { children: ReactNode }) {
       lastGameState,
       lastGameStatus,
       syncedGameId,
-      loadGame,
-      toggleBatter,
-      togglePitcher,
-      startMonitoring,
+      watchPitcher,
       stopMonitoring,
     ],
   );

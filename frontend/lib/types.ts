@@ -101,6 +101,47 @@ export interface AlertsSummaryData {
   trackedPlayers: number;
 }
 
+export interface PitcherRefData {
+  id: number;
+  name: string;
+}
+
+export interface GameSummaryData {
+  gameId: string;
+  gameDate: string;
+  startTime: string | null;
+  status: string;
+  state: "live" | "upcoming" | "final" | "other";
+  awayTeam: { id: number | null; name: string };
+  homeTeam: { id: number | null; name: string };
+  awayScore: number | null;
+  homeScore: number | null;
+  inning: number | null;
+  inningHalf: "top" | "bottom" | null;
+  inningState: string | null;
+  outs: number | null;
+  currentPitcher: PitcherRefData | null;
+  currentPitcherTeamSide: "away" | "home" | null;
+  probablePitchers: {
+    away: PitcherRefData | null;
+    home: PitcherRefData | null;
+  };
+  //: e.g. "Top 5th · 1 Out", "Final", or a formatted start time — omits
+  // parts that are null rather than rendering a placeholder for them.
+  stateLabel: string;
+}
+
+export interface SignalData {
+  level: "watch" | "alert";
+  metric: "usage" | "velocity";
+  pitchType: string;
+  pitchName: string | null;
+  baselineValue: number;
+  todayValue: number;
+  delta: number;
+  sampleBasis: number;
+}
+
 export interface PitchComparisonRowData {
   pitchType: string;
   pitchName: string;
@@ -129,6 +170,7 @@ export interface PregameLiveComparisonData {
   liveTotalPitches: number;
   overallLiveStatus: SampleStatus;
   rows: PitchComparisonRowData[];
+  signals: SignalData[];
   limitations: string[];
 }
 
