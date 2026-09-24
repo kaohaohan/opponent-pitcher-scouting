@@ -7,7 +7,7 @@ rule engine or the database learning anything about MLB's payloads.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -155,6 +155,15 @@ class AlertRead(BaseModel):
     rule_type: str
     message: str
     created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def _assume_utc(cls, value: datetime) -> datetime:
+        """SQLite drops tzinfo on read, so a stored UTC timestamp comes back
+        naive and would serialize without an offset — which browsers parse
+        as *local* time (8 hours off in Taiwan). Every timestamp here is
+        written as UTC (`models._utcnow`), so tag naive ones as UTC."""
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value
 
 
 class ReplayReport(BaseModel):

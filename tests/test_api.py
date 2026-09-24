@@ -107,6 +107,16 @@ def test_alerts_can_be_filtered_by_rule_type(client):
     assert "exit velocity" in alerts[0]["message"]
 
 
+def test_alert_timestamps_are_serialized_with_a_utc_offset(client):
+    """Without an offset, browsers read the time as local and show e.g.
+    "8h ago" in Taiwan for an alert created seconds ago."""
+    client.post("/api/replay")
+
+    created_at = client.get("/api/alerts").json()[0]["created_at"]
+
+    assert created_at.endswith(("Z", "+00:00"))
+
+
 def test_replay_endpoint_reports_a_missing_fixture(client):
     response = client.post("/api/replay?fixture_path=/tmp/does-not-exist.json")
 
