@@ -40,8 +40,10 @@ function signalLevelMap(signals: SignalData[]): Map<string, SignalLevel> {
  */
 export function PitchMixComparison({
   comparison,
+  isUpdating = false,
 }: {
   comparison: PregameLiveComparisonData | null;
+  isUpdating?: boolean;
 }) {
   const signalLevels = comparison ? signalLevelMap(comparison.signals) : new Map<string, SignalLevel>();
 
@@ -54,6 +56,7 @@ export function PitchMixComparison({
         </div>
         {comparison ? (
           <span className="panel-heading__meta">
+            {isUpdating ? <span className="panel-heading__updating">Updating… · </span> : null}
             {comparison.liveTotalPitches} live pitch{comparison.liveTotalPitches === 1 ? "" : "es"}
             {comparison.baselineAvailable
               ? ` · ${comparison.baselineTotalPitches} baseline`

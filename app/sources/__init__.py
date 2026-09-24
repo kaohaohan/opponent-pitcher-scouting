@@ -8,10 +8,10 @@ from .live import (
     clear_live_snapshot_cache,
 )
 from .replay import ReplaySource
-from .schedule import ScheduleSource, ScheduleSourceError
+from .schedule import ScheduleSource, ScheduleSourceError, clear_schedule_cache
 
 __all__ = [
     "PlateAppearanceSource", "RawEvent", "LiveSource", "LiveSourceError",
     "LiveGameNotFound", "LiveFeedError", "clear_live_snapshot_cache", "ReplaySource",
-    "ScheduleSource", "ScheduleSourceError", "summarize_live_feed",
+    "ScheduleSource", "ScheduleSourceError", "clear_schedule_cache", "summarize_live_feed",
 ]

@@ -15,9 +15,13 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The MLB schedule could not be loaded.";
 }
 
-function analysisHref(gameId: string, pitcherId: number, name?: string): string {
+function analysisHref(gameId: string, pitcherId: number, name?: string | null, date?: string | null): string {
   const base = `/player-watch/${gameId}/pitchers/${pitcherId}`;
-  return name ? `${base}?name=${encodeURIComponent(name)}` : base;
+  const params = new URLSearchParams();
+  if (name) params.set("name", name);
+  if (date) params.set("date", date);
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
 }
 
 function formatStartTime(startTime: string | null): string | null {
@@ -29,16 +33,18 @@ function formatStartTime(startTime: string | null): string | null {
 
 function ProbablePitcherLink({
   gameId,
+  gameDate,
   pitcher,
 }: {
   gameId: string;
+  gameDate: string;
   pitcher: PitcherRefData | null;
 }) {
   if (!pitcher) {
     return <span className="probable-pitcher probable-pitcher--tbd">TBD</span>;
   }
   return (
-    <Link className="probable-pitcher" href={analysisHref(gameId, pitcher.id, pitcher.name)}>
+    <Link className="probable-pitcher" href={analysisHref(gameId, pitcher.id, pitcher.name, gameDate)}>
       {pitcher.name}
     </Link>
   );
@@ -53,9 +59,9 @@ function UpcomingRow({ game }: { game: GameSummaryData }) {
         {game.awayTeam.name} @ {game.homeTeam.name}
       </span>
       <div className="upcoming-row__pitchers">
-        <ProbablePitcherLink gameId={game.gameId} pitcher={game.probablePitchers.away} />
+        <ProbablePitcherLink gameId={game.gameId} gameDate={game.gameDate} pitcher={game.probablePitchers.away} />
         <span className="upcoming-row__vs" aria-hidden="true">vs</span>
-        <ProbablePitcherLink gameId={game.gameId} pitcher={game.probablePitchers.home} />
+        <ProbablePitcherLink gameId={game.gameId} gameDate={game.gameDate} pitcher={game.probablePitchers.home} />
       </div>
     </div>
   );
@@ -72,9 +78,9 @@ function FinalRow({ game }: { game: GameSummaryData }) {
       <span className="final-row__score">{scoreLabel}</span>
       {hasProbables ? (
         <div className="final-row__pitchers">
-          <ProbablePitcherLink gameId={game.gameId} pitcher={game.probablePitchers.away} />
+          <ProbablePitcherLink gameId={game.gameId} gameDate={game.gameDate} pitcher={game.probablePitchers.away} />
           <span className="upcoming-row__vs" aria-hidden="true">vs</span>
-          <ProbablePitcherLink gameId={game.gameId} pitcher={game.probablePitchers.home} />
+          <ProbablePitcherLink gameId={game.gameId} gameDate={game.gameDate} pitcher={game.probablePitchers.home} />
         </div>
       ) : null}
     </div>
@@ -285,6 +291,10 @@ export function GameDiscovery() {
   // can retry.
   const scheduleFailed =
     scheduleQuery.isError || (scheduleQuery.data === undefined && scheduleQuery.fetchStatus === "paused");
+  // With `placeholderData: keepPreviousData`, switching dates shows the
+  // previous date's games immediately instead of a loading flash — this is
+  // the only hint that a fresher list is on the way.
+  const scheduleUpdating = scheduleQuery.isFetching && scheduleQuery.isPlaceholderData;
 
   return (
     <div className="game-discovery">
@@ -294,6 +304,7 @@ export function GameDiscovery() {
             <p className="section-kicker">Choose a date</p>
             <h2 id="game-discovery-date-title">MLB schedule</h2>
           </div>
+          {scheduleUpdating ? <span className="panel-heading__updating">Updating…</span> : null}
         </div>
         <DateNav date={date} onChange={setDate} />
       </section>

@@ -7,8 +7,10 @@ from pathlib import Path
 
 import httpx
 
+import app.sources._swr_cache as swr_cache_module
 import app.sources.live as live_module
 from app.sources import LiveGameNotFound, LiveSource
+from app.sources._swr_cache import synchronous_executor
 
 LIVE_FIXTURE = (
     Path(__file__).parent / "fixtures" / "mlb_live_feed_776743_20250814_230000.json"
@@ -143,17 +145,50 @@ def test_live_snapshot_cache_reuses_payload_within_ttl():
     assert len(other_calls) == 0  # cache hit never touches the second client
 
 
-def test_live_snapshot_cache_refetches_after_ttl_expires(monkeypatch):
+def test_live_snapshot_cache_serves_stale_and_refreshes_in_background_after_ttl(monkeypatch):
+    # Stale-while-revalidate: once the fresh TTL elapses but before max_stale,
+    # a call gets the old payload back immediately *and* triggers exactly one
+    # background refresh. A synchronous executor makes that refresh happen
+    # inline, so the test can observe it deterministically.
     fake_now = [1_000.0]
-    monkeypatch.setattr(live_module.time, "monotonic", lambda: fake_now[0])
+    monkeypatch.setattr(swr_cache_module.time, "monotonic", lambda: fake_now[0])
+    monkeypatch.setattr(live_module._snapshot_cache, "_executor", synchronous_executor())
 
     client, calls = _counting_client()
-    LiveSource(999002, client=client).fetch_snapshot()
+    first = LiveSource(999002, client=client).fetch_snapshot()
     assert len(calls) == 1
 
     fake_now[0] += live_module.LIVE_SNAPSHOT_TTL_SECONDS + 0.01
-    LiveSource(999002, client=client).fetch_snapshot()
-    assert len(calls) == 2
+    second_client, second_calls = _counting_client()
+    second = LiveSource(999002, client=second_client).fetch_snapshot()
+    # Served from the stale cache, not the calling instance's own client...
+    assert second == first
+    assert len(calls) == 1
+    # ...but that call's background refresh (run inline here) hit upstream
+    # once, through the calling instance's own loader.
+    assert len(second_calls) == 1
+
+    # A subsequent call within the new fresh window reuses the refreshed
+    # value without touching MLB again.
+    third_client, third_calls = _counting_client()
+    LiveSource(999002, client=third_client).fetch_snapshot()
+    assert len(third_calls) == 0
+
+
+def test_live_snapshot_cache_loads_synchronously_once_past_max_stale(monkeypatch):
+    fake_now = [2_000.0]
+    monkeypatch.setattr(swr_cache_module.time, "monotonic", lambda: fake_now[0])
+
+    client, calls = _counting_client()
+    LiveSource(999006, client=client).fetch_snapshot()
+    assert len(calls) == 1
+
+    fake_now[0] += live_module.LIVE_SNAPSHOT_MAX_STALE_SECONDS + 0.01
+    second_client, second_calls = _counting_client()
+    LiveSource(999006, client=second_client).fetch_snapshot()
+    # Too stale to serve: the caller blocks on its own upstream call.
+    assert len(calls) == 1
+    assert len(second_calls) == 1
 
 
 def test_live_snapshot_cache_does_not_cache_errors():

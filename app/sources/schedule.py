@@ -13,6 +13,33 @@ import httpx
 
 from ..schemas import GameSummary, TeamRead
 from ._linescore import game_state_from_status, linescore_fields, parse_pitcher_ref
+from ._swr_cache import SWRCache
+
+#: How long a fetched schedule page stays fresh before the next caller
+#: re-hits MLB at all. The home page and its ~30s poll share this cache, so
+#: within the window they collapse to one upstream call.
+SCHEDULE_FRESH_TTL_SECONDS = 15.0
+
+#: How long a stale schedule page may still be served (immediately, while a
+#: background refresh runs) before a caller is made to wait on MLB directly.
+SCHEDULE_MAX_STALE_SECONDS = 300.0
+
+# date (YYYY-MM-DD) -> raw MLB schedule payload. Process-wide and in-memory
+# only: no Redis, no cross-process sharing (a handful of dates are ever hot
+# at once, so this never grows large).
+_schedule_cache: SWRCache[str, dict[str, Any]] = SWRCache(
+    fresh_ttl=SCHEDULE_FRESH_TTL_SECONDS,
+    max_stale=SCHEDULE_MAX_STALE_SECONDS,
+)
+
+
+def clear_schedule_cache() -> None:
+    """Drop every cached MLB schedule payload.
+
+    Tests use this (via an autouse fixture) to keep runs isolated, since the
+    cache is process-wide state shared across `ScheduleSource` instances.
+    """
+    _schedule_cache.clear()
 
 
 class ScheduleSourceError(RuntimeError):
@@ -27,7 +54,13 @@ class ScheduleSource:
         self.timeout = timeout
 
     def games_for_date(self, date: str) -> list[GameSummary]:
-        payload = self._fetch(date)
+        """Return one date's games, from the shared stale-while-revalidate cache.
+
+        Only successful payloads are cached; a `ScheduleSourceError` from
+        `_fetch` propagates without being cached, so a synchronous (too-stale
+        or missing) call retries upstream immediately.
+        """
+        payload = _schedule_cache.get(date, lambda: self._fetch(date))
         dates = payload.get("dates", [])
         if not isinstance(dates, list):
             raise ScheduleSourceError("MLB schedule dates is not a list")

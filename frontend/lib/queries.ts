@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   generateComparisonNote,
@@ -59,6 +59,10 @@ export function useSchedule(date: string) {
     queryFn: () => getSchedule(date),
     staleTime: 30 * 1000,
     retry: 1,
+    // Switching dates changes the query key; keep showing the previous
+    // date's games while the new one loads instead of flashing back to a
+    // loading state (see `isPlaceholderData` in `GameDiscovery`).
+    placeholderData: keepPreviousData,
     refetchInterval: (query) =>
       query.state.data?.some((game) => game.state === "live") ? 30 * 1000 : false,
     refetchIntervalInBackground: false,
@@ -156,6 +160,10 @@ export function usePregameLiveComparison(request: ComparisonRequest | null) {
       ),
     enabled: request !== null,
     staleTime: 10 * 1000,
+    // Switching pitcher/game or editing the baseline window changes the
+    // query key; keep showing the previous comparison while the new one
+    // loads instead of flashing back to a loading state.
+    placeholderData: keepPreviousData,
     refetchInterval: 15 * 1000,
     refetchIntervalInBackground: false,
     retry: 1,

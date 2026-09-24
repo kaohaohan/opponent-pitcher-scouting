@@ -31,10 +31,21 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "This could not be loaded.";
 }
 
-function analysisHref(gameId: number, pitcherId: number, name?: string | null): string {
+function analysisHref(
+  gameId: number,
+  pitcherId: number,
+  name?: string | null,
+  date?: string | null,
+): string {
   const base = `/player-watch/${gameId}/pitchers/${pitcherId}`;
-  return name ? `${base}?name=${encodeURIComponent(name)}` : base;
+  const params = new URLSearchParams();
+  if (name) params.set("name", name);
+  if (date) params.set("date", date);
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
 }
+
+const DATE_PARAM_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function sameRequest(a: ComparisonRequest | null, b: ComparisonRequest): boolean {
   return (
@@ -60,6 +71,13 @@ export interface PitcherAnalysisClientProps {
 export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClientProps) {
   const searchParams = useSearchParams();
   const nameParam = searchParams.get("name");
+  const rawDateParam = searchParams.get("date");
+  // The caller (Game Discovery / Live cards) already knows the game's date
+  // from the schedule it just fetched, so it passes it along in the URL —
+  // that lets the comparison query start with the right baseline window
+  // immediately, in parallel with the summary query, instead of waiting for
+  // the summary to resolve `gameDate` first.
+  const dateParam = rawDateParam && DATE_PARAM_PATTERN.test(rawDateParam) ? rawDateParam : null;
 
   const { watchPitcher, stopMonitoring } = useLiveMonitoring();
 
@@ -68,12 +86,13 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
   const summaryFailed =
     summaryQuery.isError || (summaryQuery.data === undefined && summaryQuery.fetchStatus === "paused");
 
-  // Default baseline window: the day before the game, back 365 days.
-  // Falls back to today until the game's own date has loaded, then
-  // recomputes — harmless since the comparison result is cached per
-  // (pitcher, window) on the backend. A custom window the user sets in
-  // "Baseline settings" below always wins over this default.
-  const gameDate = summary?.gameDate ?? todayIso();
+  // Default baseline window: the day before the game, back 365 days. Prefers
+  // the `date` URL param (known immediately) over `summary.gameDate` (only
+  // known once the summary query resolves) over today, so the comparison
+  // query below fires with the correct window from the first render whenever
+  // the caller supplied a date. A custom window the user sets in "Baseline
+  // settings" below always wins over this default.
+  const gameDate = dateParam ?? summary?.gameDate ?? todayIso();
   const defaultEndDate = shiftDate(gameDate, -1);
   const defaultStartDate = shiftDate(defaultEndDate, -365);
   const [customBaseline, setCustomBaseline] = useState<{ start: string; end: string } | null>(null);
@@ -83,6 +102,12 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
   const comparisonRequest: ComparisonRequest = { gameId, pitcherId, startDate, endDate };
   const comparisonQuery = usePregameLiveComparison(comparisonRequest);
   const comparison = comparisonQuery.data ? toPregameLiveComparison(comparisonQuery.data) : null;
+  // `placeholderData: keepPreviousData` (see `usePregameLiveComparison`)
+  // keeps the previous pitcher/window's result on screen while a changed
+  // key (switching pitcher, editing the baseline, a resolved `date` param)
+  // refetches, rather than dropping back to a loading state. This is the
+  // only visible sign that a fresher comparison is on its way.
+  const comparisonUpdating = comparisonQuery.isFetching && comparisonQuery.isPlaceholderData;
 
   // The scouting note is strictly on-demand: `noteRequest` only ever
   // changes inside `handleGenerateNote`, never as a side effect of the
@@ -186,7 +211,7 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
           <span>Replaced — now pitching: {currentPitcher!.name}</span>
           <Link
             className="secondary-button"
-            href={analysisHref(gameId, currentPitcher!.id, currentPitcher!.name)}
+            href={analysisHref(gameId, currentPitcher!.id, currentPitcher!.name, summary?.gameDate)}
           >
             Switch to {currentPitcher!.name}
           </Link>
@@ -195,9 +220,9 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
         <div className="pitcher-final-tag">Game final — full-game comparison</div>
       ) : null}
 
-      <PitchMixComparison comparison={comparison} />
+      <PitchMixComparison comparison={comparison} isUpdating={comparisonUpdating} />
 
-      <SignalsPanel comparison={comparison} />
+      <SignalsPanel comparison={comparison} isUpdating={comparisonUpdating} />
 
       <ComparisonNote
         note={note}

@@ -57,7 +57,13 @@ function SignalCard({ signal }: { signal: SignalData }) {
  * Purely a view over already-computed `comparison.signals` — no
  * thresholds or gating logic live here.
  */
-export function SignalsPanel({ comparison }: { comparison: PregameLiveComparisonData | null }) {
+export function SignalsPanel({
+  comparison,
+  isUpdating = false,
+}: {
+  comparison: PregameLiveComparisonData | null;
+  isUpdating?: boolean;
+}) {
   return (
     <section className="panel signals-panel" aria-labelledby="signals-panel-title">
       <div className="panel-heading">
@@ -66,7 +72,10 @@ export function SignalsPanel({ comparison }: { comparison: PregameLiveComparison
           <h2 id="signals-panel-title">Signals</h2>
         </div>
         {comparison ? (
-          <span className="panel-heading__meta">{comparison.signals.length} active</span>
+          <span className="panel-heading__meta">
+            {isUpdating ? <span className="panel-heading__updating">Updating… · </span> : null}
+            {comparison.signals.length} active
+          </span>
         ) : null}
       </div>
 

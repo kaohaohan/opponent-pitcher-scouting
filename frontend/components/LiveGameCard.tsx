@@ -1,11 +1,20 @@
-import Link from "next/link";
+"use client";
 
+import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { shiftDate } from "@/components/DateNav";
 import { PitcherAvatar } from "@/components/PitcherAvatar";
+import { getGameSummary, getPregameLiveComparison } from "@/lib/api";
 import type { GameSummaryData } from "@/lib/types";
 
-function analysisHref(gameId: string, pitcherId: number, name?: string): string {
+function analysisHref(gameId: string, pitcherId: number, name?: string | null, date?: string | null): string {
   const base = `/player-watch/${gameId}/pitchers/${pitcherId}`;
-  return name ? `${base}?name=${encodeURIComponent(name)}` : base;
+  const params = new URLSearchParams();
+  if (name) params.set("name", name);
+  if (date) params.set("date", date);
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
 }
 
 /**
@@ -16,7 +25,30 @@ function analysisHref(gameId: string, pitcherId: number, name?: string): string 
  */
 export function LiveGameCard({ game }: { game: GameSummaryData }) {
   const pitcher = game.currentPitcher;
-  const href = pitcher ? analysisHref(game.gameId, pitcher.id, pitcher.name) : null;
+  const href = pitcher ? analysisHref(game.gameId, pitcher.id, pitcher.name, game.gameDate) : null;
+  const queryClient = useQueryClient();
+
+  // On hover/focus of the CTA, warm the two queries the analysis page opens
+  // with — same query keys and fetchers it uses, so a click right after
+  // reuses this cache instead of refetching. Cheap to call repeatedly:
+  // `prefetchQuery` is a no-op while a fresh entry already exists.
+  const prefetchAnalysis = () => {
+    if (!pitcher) return;
+    const gameId = Number(game.gameId);
+    const pitcherId = pitcher.id;
+    const endDate = shiftDate(game.gameDate, -1);
+    const startDate = shiftDate(endDate, -365);
+    void queryClient.prefetchQuery({
+      queryKey: ["live-game-summary", gameId],
+      queryFn: () => getGameSummary(gameId),
+      staleTime: 10 * 1000,
+    });
+    void queryClient.prefetchQuery({
+      queryKey: ["pregame-live-comparison", gameId, pitcherId, startDate, endDate],
+      queryFn: () => getPregameLiveComparison(gameId, pitcherId, startDate, endDate),
+      staleTime: 10 * 1000,
+    });
+  };
 
   return (
     <article className="panel live-game-card">
@@ -46,7 +78,12 @@ export function LiveGameCard({ game }: { game: GameSummaryData }) {
       </div>
 
       {href ? (
-        <Link className="primary-button live-game-card__cta" href={href}>
+        <Link
+          className="primary-button live-game-card__cta"
+          href={href}
+          onMouseEnter={prefetchAnalysis}
+          onFocus={prefetchAnalysis}
+        >
           View live analysis
         </Link>
       ) : (

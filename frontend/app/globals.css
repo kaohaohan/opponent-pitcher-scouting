@@ -420,6 +420,13 @@ select:focus-visible {
   text-transform: uppercase;
 }
 
+.panel-heading__updating {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-style: italic;
+  padding-top: 3px;
+}
+
 .pregame-grid {
   align-items: start;
   display: grid;
