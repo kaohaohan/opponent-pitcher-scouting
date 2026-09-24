@@ -143,13 +143,17 @@ rate limit.
 
 The browser initiates live monitoring from the pitcher analysis page. It posts
 the selected game and pitcher to `/api/live/sync` immediately, then repeats
-every 20 seconds while that analysis view is mounted. The session provider is
-shared across frontend routes; selected game and pitcher IDs are saved in
-browser local storage so the selection can be restored, but monitoring does
-not resume automatically after reload. It stops when the analysis view
-unmounts, when the game reaches Final, or when the user stops monitoring. The
-live schedule polls every 30 seconds while live games are present; game
-summary, comparison, locations, events, and alert queries use approximately
+every 20 seconds while the root-level provider is active. Route changes within
+the same tab do not stop the loop. The global navigation shows monitoring
+state, the tracked game/pitcher, last-sync time and any sync error; users can
+stop or resume from there. Newly observed event or pitch-mix alerts produce an
+in-app notice linking to Alerts, while the initial alert list is treated as
+existing history. Selected game and pitcher IDs are saved in browser local
+storage, but a reload does not resume automatically: the user can explicitly
+resume the restored session. Monitoring stops when the game reaches Final, the
+user stops it, or the tab closes. Browser throttling can delay sync while the
+tab is in the background. The live schedule polls every 30 seconds while live
+games are present. Game summary, comparison, locations, events, and alert queries use approximately
 15-second polling while their view is active. Polling pauses in the background
 for the query hooks that opt out of background refetching.
 
@@ -183,10 +187,11 @@ metric, and pitch-type identity.
 
 ## Current limitations
 
-- Monitoring is browser-driven. Closing the tab or leaving the analysis route
-  stops polling; there is no independent server-side worker.
+- Monitoring is browser-driven. Route navigation within the same tab preserves
+  polling, but closing the tab stops it; there is no independent server-side
+  worker. Background-tab throttling can delay polling.
 - Browser storage restores the selected game and pitcher, not an active
-  monitoring loop.
+  monitoring loop. A restored session requires an explicit Resume action.
 - Caches are in-memory per process; restarts clear them and multiple replicas
   do not share them. Gemini's cooldown/cache therefore protects repeated
   same-state requests within one process only.

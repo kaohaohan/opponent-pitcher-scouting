@@ -81,7 +81,7 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
   // the summary to resolve `gameDate` first.
   const dateParam = rawDateParam && DATE_PARAM_PATTERN.test(rawDateParam) ? rawDateParam : null;
 
-  const { watchPitcher, stopMonitoring } = useLiveMonitoring();
+  const { watchPitcher, hasHydrated } = useLiveMonitoring();
 
   const summaryQuery = useGameSummary(gameId);
   const summary = summaryQuery.data ? toGameSummary(summaryQuery.data) : null;
@@ -132,16 +132,12 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
     }
   };
 
-  // Auto-monitor only while the game is live, and re-target whenever the
-  // pitcher (or game) this view is looking at changes — e.g. via the
-  // "Now pitching" switch banner below. Monitoring stops when this view
-  // unmounts (see the footer note); the provider itself also stops it
-  // once the game goes Final.
+  // Start/retarget only after stored session state has been restored. The
+  // root provider owns the loop, so unmounting this route does not stop it.
   useEffect(() => {
-    if (summary?.state !== "live") return undefined;
+    if (!hasHydrated || summary?.state !== "live") return;
     watchPitcher(gameId, pitcherId);
-    return () => stopMonitoring();
-  }, [gameId, pitcherId, summary?.state, watchPitcher, stopMonitoring]);
+  }, [gameId, hasHydrated, pitcherId, summary?.state, watchPitcher]);
 
   const eventsQuery = useEvents(undefined, 200, true, String(gameId), undefined, pitcherId);
   const alertsQuery = useAlerts(200);
@@ -284,7 +280,7 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
       )}
 
       <p className="pitcher-analysis__footer">
-        Monitoring runs in this browser tab — closing it stops monitoring.
+        Monitoring continues while you move between pages in this tab. Closing it stops monitoring.
       </p>
     </div>
   );

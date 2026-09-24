@@ -16,7 +16,10 @@ export function TopNav({ active }: { active: NavSection }) {
   const alertsQuery = useAlerts();
   const pitchMixAlertsQuery = usePitchMixAlerts();
   const monitoring = useLiveMonitoring();
-  const watchedCount = monitoring.selectedPitcherIds.length;
+  const trackedPitcherId = monitoring.selectedPitcherIds[0];
+  const lastSyncLabel = monitoring.lastSyncTimestamp
+    ? ` · Synced ${new Date(monitoring.lastSyncTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+    : "";
   const visibleAlertCount =
     (alertsQuery.data?.filter((alert) => alert.subject_role === "pitcher").length ?? 0) +
     (pitchMixAlertsQuery.data?.length ?? 0);
@@ -57,18 +60,29 @@ export function TopNav({ active }: { active: NavSection }) {
               title={
                 monitoring.lastSyncError
                   ? `Live sync error: ${monitoring.lastSyncError}`
-                  : `Game ${monitoring.gameId} · ${watchedCount} watched player${watchedCount === 1 ? "" : "s"}`
+                  : `Game ${monitoring.gameId}${trackedPitcherId ? ` · Pitcher ${trackedPitcherId}` : ""}`
               }
             >
               <span className="monitoring-status__dot" aria-hidden="true" />
               {monitoring.isMonitoring ? "Monitoring" : "Stopped"}
               <span className="monitoring-status__meta">
-                Game {monitoring.gameId} · {watchedCount} watched
+                Game {monitoring.gameId}
+                {trackedPitcherId ? ` · Pitcher ${trackedPitcherId}` : ""}
+                {lastSyncLabel}
               </span>
               {monitoring.lastSyncError ? (
                 <span className="monitoring-status__error" aria-hidden="true">
                   !
                 </span>
+              ) : null}
+              {monitoring.isMonitoring ? (
+                <button className="monitoring-status__action" type="button" onClick={monitoring.stopMonitoring}>
+                  Stop
+                </button>
+              ) : monitoring.canResume ? (
+                <button className="monitoring-status__action" type="button" onClick={monitoring.resumeMonitoring}>
+                  Resume
+                </button>
               ) : null}
             </div>
           ) : null}

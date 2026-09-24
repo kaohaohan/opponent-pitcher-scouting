@@ -258,12 +258,14 @@ while still providing database-backed constraints and idempotency. A
 multi-worker production deployment would move persistence to a production
 database such as PostgreSQL.
 
-**C. Live sync is currently client-driven.** The current demo uses
-client-driven polling for simplicity: the browser triggers each sync while
-Player Watch is open, so closing the browser stops monitoring. A production
-multi-user version would move ingestion to
-a server-side worker/scheduled process independent of browser lifecycle. That
-worker is not implemented here.
+**C. Live sync is currently client-driven.** A root-level browser provider
+continues syncing while the user navigates among app routes in the same tab.
+The global status provides Stop/Resume controls and in-app new-alert notices;
+after a reload, the stored selection requires an explicit Resume. Closing the
+tab stops monitoring, and background browser throttling can delay sync. A
+production multi-user version would move ingestion to a server-side
+worker/scheduled process independent of browser lifecycle. That worker is not
+implemented here.
 
 **D. The product is descriptive/scouting-oriented, not predictive.** It
 reports what a pitcher has actually thrown and how tonight compares to his

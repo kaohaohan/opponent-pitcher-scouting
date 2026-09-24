@@ -255,6 +255,51 @@ select:focus-visible {
   width: 16px;
 }
 
+.monitoring-status__action {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.68rem;
+  padding: 2px 7px;
+}
+
+.monitoring-status__action:hover {
+  border-color: var(--green);
+}
+
+.monitoring-notice {
+  align-items: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--amber);
+  border-radius: var(--radius);
+  bottom: 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  gap: 14px;
+  max-width: min(720px, calc(100vw - 32px));
+  padding: 12px 16px;
+  position: fixed;
+  right: 20px;
+  z-index: 50;
+}
+
+.monitoring-notice a {
+  color: var(--green);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.monitoring-notice button {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
 @media (min-width: 960px) {
   .monitoring-status__meta {
     display: inline;
