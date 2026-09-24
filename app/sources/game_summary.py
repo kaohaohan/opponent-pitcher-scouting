@@ -3,10 +3,11 @@
 `LiveSource.fetch_snapshot` already fetches this exact payload (shared, via
 its TTL cache, with Phase 3/4 event ingestion and the Phase 5 comparison
 route); this module reads the scoreboard-level detail out of it — status,
-score, inning, current pitcher, probable pitchers — that the plate-appearance
-pipeline discards. It reuses `app.sources._linescore`'s parsing helpers
-rather than re-implementing them, since a live feed's `liveData.linescore`
-has the exact same shape as the schedule endpoint's hydrated `linescore`.
+score, inning, current pitcher, probable pitchers, each team's pitchers
+used — that the plate-appearance pipeline discards. It reuses
+`app.sources._linescore`'s parsing helpers rather than re-implementing them,
+since a live feed's `liveData.linescore` has the exact same shape as the
+schedule endpoint's hydrated `linescore`.
 
 No I/O here: this is a pure function of the payload dict to a `GameSummary`.
 """
@@ -15,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..schemas import GameSummary, TeamRead
+from ..schemas import GameSummary, PitcherRef, TeamRead
 from ._linescore import game_state_from_status, linescore_fields, parse_pitcher_ref
 
 
@@ -43,6 +44,9 @@ def summarize_live_feed(payload: dict[str, Any]) -> GameSummary:
         else {}
     )
 
+    boxscore = live_data.get("boxscore") if isinstance(live_data.get("boxscore"), dict) else {}
+    boxscore_teams = boxscore.get("teams") if isinstance(boxscore.get("teams"), dict) else {}
+
     linescore = live_data.get("linescore") if isinstance(live_data.get("linescore"), dict) else {}
     linescore_teams = (
         linescore.get("teams") if isinstance(linescore.get("teams"), dict) else {}
@@ -69,6 +73,10 @@ def summarize_live_feed(payload: dict[str, Any]) -> GameSummary:
             "away": parse_pitcher_ref(probable_pitchers.get("away")),
             "home": parse_pitcher_ref(probable_pitchers.get("home")),
         },
+        pitchers_used={
+            "away": _pitchers_used(boxscore_teams.get("away")),
+            "home": _pitchers_used(boxscore_teams.get("home")),
+        },
         **linescore_fields(linescore, state),
     )
 
@@ -78,3 +86,26 @@ def _runs(team_linescore: Any) -> int | None:
         return None
     runs = team_linescore.get("runs")
     return runs if isinstance(runs, int) else None
+
+
+def _pitchers_used(team_boxscore: Any) -> list[PitcherRef]:
+    """A team's pitchers in order of appearance, from its boxscore.
+
+    `teams.<side>.pitchers` is MLB's ordered list of pitcher ids; names come
+    from the same team's `players["ID<id>"].person`. An id without a
+    resolvable name is skipped rather than guessed at.
+    """
+    if not isinstance(team_boxscore, dict):
+        return []
+    pitcher_ids = team_boxscore.get("pitchers")
+    players = team_boxscore.get("players")
+    if not isinstance(pitcher_ids, list) or not isinstance(players, dict):
+        return []
+    used: list[PitcherRef] = []
+    for pitcher_id in pitcher_ids:
+        player = players.get(f"ID{pitcher_id}")
+        person = player.get("person") if isinstance(player, dict) else None
+        pitcher = parse_pitcher_ref(person)
+        if pitcher is not None:
+            used.append(pitcher)
+    return used

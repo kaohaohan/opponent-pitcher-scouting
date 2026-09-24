@@ -456,6 +456,10 @@ export function toGameSummary(dto: GameSummaryDto): GameSummaryData {
       away: toPitcherRef(dto.probable_pitchers.away),
       home: toPitcherRef(dto.probable_pitchers.home),
     },
+    pitchersUsed: {
+      away: (dto.pitchers_used?.away ?? []).map((ref) => ({ id: ref.id, name: ref.name })),
+      home: (dto.pitchers_used?.home ?? []).map((ref) => ({ id: ref.id, name: ref.name })),
+    },
     stateLabel: gameStateLabel(dto),
   };
 }

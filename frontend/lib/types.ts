@@ -126,6 +126,10 @@ export interface GameSummaryData {
     away: PitcherRefData | null;
     home: PitcherRefData | null;
   };
+  pitchersUsed: {
+    away: PitcherRefData[];
+    home: PitcherRefData[];
+  };
   //: e.g. "Top 5th · 1 Out", "Final", or a formatted start time — omits
   // parts that are null rather than rendering a placeholder for them.
   stateLabel: string;

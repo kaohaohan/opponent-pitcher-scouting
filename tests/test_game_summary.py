@@ -101,3 +101,33 @@ def test_summarize_live_feed_upcoming_game_has_no_linescore_yet():
     # Probable pitchers still come from gameData, independent of linescore.
     assert summary.probable_pitchers["away"].id == 111
     assert summary.probable_pitchers["home"].id == 222
+
+
+def test_summarize_live_feed_lists_each_teams_pitchers_in_order_of_appearance():
+    payload = _payload()
+    payload["liveData"]["boxscore"] = {
+        "teams": {
+            "away": {
+                "pitchers": [111, 333],
+                "players": {
+                    "ID111": {"person": {"id": 111, "fullName": "Away Starter"}},
+                    "ID333": {"person": {"id": 333, "fullName": "Away Reliever"}},
+                },
+            },
+            "home": {
+                "pitchers": [542881],
+                "players": {"ID542881": {"person": {"id": 542881, "fullName": "Tyler Anderson"}}},
+            },
+        }
+    }
+
+    summary = summarize_live_feed(payload)
+
+    assert [p.name for p in summary.pitchers_used["away"]] == ["Away Starter", "Away Reliever"]
+    assert [p.id for p in summary.pitchers_used["home"]] == [542881]
+
+
+def test_summarize_live_feed_without_boxscore_has_no_pitchers_used():
+    summary = summarize_live_feed(_payload())
+
+    assert summary.pitchers_used == {"away": [], "home": []}

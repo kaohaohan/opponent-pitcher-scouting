@@ -128,9 +128,22 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
     );
   }, [eventsQuery.data, alertsQuery.data, pitcherId, pitcherName]);
 
-  const currentPitcher = summary?.currentPitcher ?? null;
+  // Compare against this pitcher's OWN team, not whoever is on the mound:
+  // every half-inning the other team's pitcher takes the mound, which is not
+  // a pitching change. The viewed pitcher's side is whichever team's
+  // appearance list includes him; that list's last entry is his team's
+  // current pitcher. Before he has appeared (side unknown) there's nothing
+  // to report.
+  const ownSide = summary
+    ? (["away", "home"] as const).find((side) =>
+        summary.pitchersUsed[side].some((pitcher) => pitcher.id === pitcherId),
+      )
+    : undefined;
+  const ownTeamPitchers = ownSide ? summary!.pitchersUsed[ownSide] : [];
+  const replacementPitcher = ownTeamPitchers[ownTeamPitchers.length - 1] ?? null;
   const showSwitchBanner =
-    summary?.state === "live" && currentPitcher !== null && currentPitcher.id !== pitcherId;
+    summary?.state === "live" && replacementPitcher !== null && replacementPitcher.id !== pitcherId;
+  const currentPitcher = replacementPitcher;
   const showFinalTag = summary?.state === "final";
 
   return (
@@ -170,7 +183,7 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
 
       {showSwitchBanner ? (
         <div className="pitcher-switch-banner">
-          <span>Now pitching: {currentPitcher!.name}</span>
+          <span>Replaced — now pitching: {currentPitcher!.name}</span>
           <Link
             className="secondary-button"
             href={analysisHref(gameId, currentPitcher!.id, currentPitcher!.name)}

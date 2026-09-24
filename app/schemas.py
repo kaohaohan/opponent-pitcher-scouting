@@ -262,3 +262,11 @@ class GameSummary(BaseModel):
     probable_pitchers: dict[Literal["away", "home"], PitcherRef | None] = Field(
         default_factory=lambda: {"away": None, "home": None}
     )
+    #: Each team's pitchers in order of appearance (from the live feed's
+    #: boxscore); the last entry is that team's current or most recent
+    #: pitcher. Lets a client tell "my pitcher was replaced" apart from "the
+    #: other team's pitcher is on the mound this half-inning", which
+    #: `current_pitcher` alone cannot. Empty from the schedule endpoint.
+    pitchers_used: dict[Literal["away", "home"], list[PitcherRef]] = Field(
+        default_factory=lambda: {"away": [], "home": []}
+    )

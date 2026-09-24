@@ -210,6 +210,12 @@ export interface GameSummaryDto {
     away: PitcherRefDto | null;
     home: PitcherRefDto | null;
   };
+  // Each team's pitchers in order of appearance; last = current/most recent.
+  // Only the single-game summary fills this; the schedule sends empty lists.
+  pitchers_used: {
+    away: PitcherRefDto[];
+    home: PitcherRefDto[];
+  };
 }
 
 export function getSchedule(date: string): Promise<GameSummaryDto[]> {
