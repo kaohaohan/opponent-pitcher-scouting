@@ -7,6 +7,7 @@ import io
 from datetime import date
 
 import httpx
+import pytest
 
 from app.pregame.sources.statcast import StatcastPitchSource, parse_csv_rows
 
@@ -41,6 +42,27 @@ def test_blank_pitch_type_rows_are_still_skipped():
     ]
 
     assert parse_csv_rows(rows) == []
+
+
+@pytest.mark.parametrize("pitch_type", ["PO", "IN", "AB", "UN"])
+def test_non_arsenal_throws_are_skipped(pitch_type):
+    base = {
+        "pitcher": "543037",
+        "game_pk": "745708",
+        "game_date": "2024-08-10",
+        "at_bat_number": "43",
+        "balls": "1",
+        "strikes": "1",
+        "release_speed": "82.9",
+    }
+    rows = [
+        {**base, "pitch_type": pitch_type, "pitch_number": "1"},
+        {**base, "pitch_type": "SL", "pitch_number": "2"},
+    ]
+
+    records = parse_csv_rows(rows)
+
+    assert [record.pitch_type for record in records] == ["SL"]
 
 
 def test_bom_prefixed_csv_header_parses_correctly():

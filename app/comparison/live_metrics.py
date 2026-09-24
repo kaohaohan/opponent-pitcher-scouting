@@ -19,6 +19,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from ..pregame.sources.statcast import NON_ARSENAL_PITCH_TYPES
+
 #: The MLB live feed's `details.type` usually carries a short `code`
 #: (e.g. `"FF"`) alongside its human-readable `description` (e.g.
 #: `"Four-Seam Fastball"`) — the same vocabulary Baseball Savant's
@@ -36,6 +38,9 @@ _DESCRIPTION_TO_CODE: dict[str, str] = {
     "fastball": "FA",
     "four-seam fastball": "FF",
     "forkball": "FO",
+    "intentional ball": "IN",
+    "automatic ball": "AB",
+    "pitchout": "PO",
     "knuckle curve": "KC",
     "knuckleball": "KN",
     "screwball": "SC",
@@ -142,13 +147,16 @@ def _normalize_pitch_type(pitch_type_data: dict[str, Any]) -> str | None:
     Prefers the feed's own `code`; falls back to mapping `description`
     through `_DESCRIPTION_TO_CODE`; falls back to the raw description
     itself (still usable as a live-only row, just not one that can line
-    up with a pregame baseline row) when neither is recognized.
+    up with a pregame baseline row) when neither is recognized. A
+    non-arsenal throw (pitchout, intentional ball, ...) returns `None` so
+    it's dropped exactly like the baseline side drops it.
     """
     code = pitch_type_data.get("code")
     if isinstance(code, str) and code:
-        return code.upper()
-
-    description = pitch_type_data.get("description")
-    if not isinstance(description, str) or not description:
-        return None
-    return _DESCRIPTION_TO_CODE.get(description.strip().lower(), description)
+        normalized = code.upper()
+    else:
+        description = pitch_type_data.get("description")
+        if not isinstance(description, str) or not description:
+            return None
+        normalized = _DESCRIPTION_TO_CODE.get(description.strip().lower(), description)
+    return None if normalized in NON_ARSENAL_PITCH_TYPES else normalized

@@ -65,11 +65,20 @@ class StatcastPitchSource(PitchDataSource):
         return parse_csv_rows(csv.DictReader(io.StringIO(csv_text)))
 
 
+#: Statcast `pitch_type` codes that record a non-competitive throw rather
+#: than a pitch in the pitcher's arsenal: pitchouts, intentional balls,
+#: automatic (pitch-clock) balls, and unclassified pitches. Counting them
+#: would put a "Pitchout 0.2%" row in the pitch mix and dilute every real
+#: pitch type's usage share, so they're dropped here and in live metrics.
+NON_ARSENAL_PITCH_TYPES: frozenset[str] = frozenset({"PO", "IN", "AB", "UN"})
+
+
 def parse_csv_rows(rows: Iterable[dict[str, str]]) -> list[PitchRecord]:
     """Normalize raw Statcast CSV rows into `PitchRecord`s.
 
     A row with no `pitch_type` (e.g. a pickoff throw) carries no usable
-    pitch identity and is skipped rather than guessed at. Any other row
+    pitch identity and is skipped rather than guessed at, as is a
+    non-arsenal throw (`NON_ARSENAL_PITCH_TYPES`). Any other row
     that fails validation is skipped and logged — one malformed row does
     not abort the fetch, matching Phase 1's handling of a single malformed
     event.
@@ -77,7 +86,7 @@ def parse_csv_rows(rows: Iterable[dict[str, str]]) -> list[PitchRecord]:
     records: list[PitchRecord] = []
     for row in rows:
         pitch_type = (row.get("pitch_type") or "").strip()
-        if not pitch_type:
+        if not pitch_type or pitch_type.upper() in NON_ARSENAL_PITCH_TYPES:
             continue
         try:
             records.append(

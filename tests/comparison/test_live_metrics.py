@@ -180,3 +180,24 @@ def test_includes_pitches_from_an_in_progress_at_bat():
     metrics = compute_live_pitcher_metrics(feed, 542881)
 
     assert metrics.total_pitches == 1
+
+
+@pytest.mark.parametrize(
+    ("pitch_type", "as_code"),
+    [("PO", True), ("IN", True), ("Pitchout", False), ("Intentional Ball", False)],
+)
+def test_non_arsenal_throws_are_excluded_from_counts_and_denominator(pitch_type, as_code):
+    feed = payload(
+        [
+            play(
+                542881,
+                "Tyler Anderson",
+                [pitch_event(pitch_type, 80.0, as_code=as_code), pitch_event("Slider", 87.5)],
+            )
+        ]
+    )
+
+    metrics = compute_live_pitcher_metrics(feed, 542881)
+
+    assert metrics.total_pitches == 1
+    assert [row.pitch_type for row in metrics.by_type] == ["SL"]
