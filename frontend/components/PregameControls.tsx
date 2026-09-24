@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
 import { PitcherAvatar } from "@/components/PitcherAvatar";
@@ -227,6 +228,10 @@ export function PregameControls({
           />
         </label>
       </div>
+      <p className="pregame-controls__hint">
+        Pregame searches historical Statcast pitches in this date window. For a specific game outing, use{" "}
+        <Link href="/player-watch">Player Watch</Link>.
+      </p>
       <button className="primary-button" disabled={isGenerating} type="submit">
         <span aria-hidden="true" data-spinning={isGenerating}>
           ↻

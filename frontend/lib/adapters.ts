@@ -349,6 +349,14 @@ export function toAlertData(
     category: "pitcher",
     event: event?.result ?? "Rule matched",
     detail: alert.message,
+    pitchInfo: event
+      ? [
+          event.pitch_type,
+          event.pitch_velocity != null ? `${event.pitch_velocity.toFixed(1)} mph` : null,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .join(" · ") || null
+      : null,
     gameMoment: event ? `Inning ${event.inning}` : "Recorded alert",
     timestamp: relativeTime(alert.created_at),
     createdAt: alert.created_at,
@@ -385,6 +393,7 @@ export function toPitchMixAlertData(alert: PitchMixAlertDto): AlertData {
     category: "pitch-mix",
     event: `${alert.pitch_name ?? alert.pitch_type} ${metric}`,
     detail: `${values} (${delta}). ${alert.sample_basis} pitch${alert.sample_basis === 1 ? "" : "es"} sampled.`,
+    pitchInfo: null,
     gameMoment: alert.active ? `Game ${alert.game_id} · Active` : `Game ${alert.game_id} · Resolved`,
     timestamp: relativeTime(alert.updated_at),
     createdAt: alert.updated_at,

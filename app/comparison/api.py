@@ -40,7 +40,8 @@ from .llm.gemini import (
     GeminiRequestError,
 )
 from .locations import PitchLocations, compute_pitch_locations
-from .schemas import ComparisonNote, PregameLiveComparison
+from .outcomes import compute_pitcher_outcome_context
+from .schemas import ComparisonNote, ComparisonNoteInput, PregameLiveComparison
 
 router = APIRouter(prefix="/api/live/games", tags=["comparison"])
 
@@ -64,9 +65,9 @@ _BaselineCacheKey = tuple[int, date, date]
 _baseline_cache: dict[_BaselineCacheKey, tuple[float, list[PitchRecord]]] = {}
 _baseline_cache_lock = threading.Lock()
 
-# Notes are deliberately cached only in this process. The comparison JSON is
-# part of the key, so a new live-pitch state gets a fresh note while rapid
-# repeat clicks for the same state reuse the existing Gemini response.
+# Notes are deliberately cached only in this process. The complete note input
+# (including outcome context) is part of the key, so a changed game state gets
+# a fresh note while rapid repeat clicks for the same state reuse the response.
 _NOTE_CACHE_TTL_SECONDS = 60.0
 _NoteCacheKey = tuple[int, int, date, date, str]
 _note_cache: dict[_NoteCacheKey, tuple[float, ComparisonNote]] = {}
@@ -219,18 +220,34 @@ def generate_comparison_note(
     source: PitchDataSource = Depends(get_pitch_source),
     llm: ComparisonNoteProvider = Depends(get_comparison_note_provider),
 ) -> ComparisonNote:
-    """An on-demand AI explanation of the same comparison the GET route
-    returns. Recomputes it internally so this endpoint can be called
-    without the client having called the GET route first.
+    """An on-demand AI explanation of the deterministic comparison plus
+    game outcomes. Recomputes the comparison internally so this endpoint
+    can be called without the client having called the GET route first.
 
     A Gemini failure here (no key, request failure, malformed response)
     never affects the GET route — the two are entirely separate requests
     against separate computations of the deterministic numbers, so the
     numeric table is never blocked on this endpoint's success.
     """
-    comparison = build_pitcher_comparison(game_id, pitcher_id, start_date, end_date, source)
+    try:
+        live_payload = LiveSource(game_id=game_id).fetch_snapshot()
+    except LiveGameNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except LiveSourceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    comparison = build_pitcher_comparison(
+        game_id, pitcher_id, start_date, end_date, source, live_payload=live_payload
+    )
+    note_input = ComparisonNoteInput.model_validate(
+        {
+            **comparison.model_dump(),
+            "outcome_context": compute_pitcher_outcome_context(
+                live_payload, pitcher_id
+            ).model_dump(),
+        }
+    )
     cache_key = _comparison_note_cache_key(
-        game_id, pitcher_id, start_date, end_date, comparison
+        game_id, pitcher_id, start_date, end_date, note_input
     )
     # Hold the process-local lock through generation. This intentionally
     # serializes same-process note generation so two simultaneous clicks for
@@ -243,7 +260,7 @@ def generate_comparison_note(
                 return note
             _note_cache.pop(cache_key, None)
         try:
-            note = llm.generate_note(comparison)
+            note = llm.generate_note(note_input)
         except GeminiConfigurationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)

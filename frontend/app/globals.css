@@ -610,7 +610,19 @@ select:focus-visible {
 .date-fields {
   display: grid;
   gap: 9px;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.pregame-controls__hint {
+  color: var(--text-dim);
+  font-size: 0.66rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.pregame-controls__hint a {
+  color: var(--green);
+  text-decoration: underline;
 }
 
 .primary-button {
@@ -1470,6 +1482,12 @@ select:focus-visible {
   margin: 7px 0;
 }
 
+.alert-row p.alert-row__pitch {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  margin: 4px 0 8px;
+}
+
 .alert-row__meta {
   align-items: center;
   display: flex;
@@ -1595,6 +1613,10 @@ select:focus-visible {
   }
 
   .control-status {
+    grid-column: 1 / -1;
+  }
+
+  .pregame-controls__hint {
     grid-column: 1 / -1;
   }
 

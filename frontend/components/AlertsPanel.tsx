@@ -79,6 +79,7 @@ export function AlertsPanel({ alerts, summary, roleFilter, onRoleFilterChange }:
                     {alert.triggeredRules.map((trigger) => <li key={trigger.rule}>{trigger.detail}</li>)}
                   </ul>
                 )}
+                {alert.pitchInfo && <p className="alert-row__pitch">Pitch: {alert.pitchInfo}</p>}
                 <div className="alert-row__meta">
                   <span className="rule-code">
                     Triggered: {alert.triggeredRules.map((trigger) => ruleLabels[trigger.rule]).join(" · ")}

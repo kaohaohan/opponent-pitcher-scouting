@@ -6,7 +6,8 @@ ORM rows into response models. No domain logic lives here.
 
 from __future__ import annotations
 
-from datetime import date as date_cls, timedelta
+from datetime import date as date_cls
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session

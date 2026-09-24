@@ -78,9 +78,11 @@ class Signal(BaseModel):
 
 
 class PregameLiveComparison(BaseModel):
-    """The complete, structured comparison. The only thing a
-    `ComparisonNoteProvider` sees, and what the numeric UI renders
-    directly — independent of whether a note is ever generated."""
+    """The complete, structured comparison rendered by the numeric UI.
+
+    The comparison is also the deterministic base of `ComparisonNoteInput`;
+    the optional Gemini note uses a separate request model.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -103,6 +105,27 @@ class PregameLiveComparison(BaseModel):
     signals: list[Signal] = Field(default_factory=list)
     #: Plain-language caveats, same convention as `PregameContext.limitations`.
     limitations: list[str]
+
+
+class OutcomeContext(BaseModel):
+    """Backend-computed results allowed by a pitcher in the current game."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    completed_plate_appearances: int
+    home_runs_allowed: int
+    extra_base_hits_allowed: int
+    hard_hit_contacts: int
+    hard_hit_threshold_mph: float
+    measured_exit_velocity_count: int
+    max_exit_velocity_mph: float | None
+    limitations: list[str] = Field(default_factory=list)
+
+
+class ComparisonNoteInput(PregameLiveComparison):
+    """Deterministic comparison and outcome facts supplied only to the note LLM."""
+
+    outcome_context: OutcomeContext
 
 
 class ComparisonBaselineRequest(BaseModel):

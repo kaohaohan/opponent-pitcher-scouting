@@ -87,6 +87,7 @@ export interface AlertData {
   category: "pitcher" | "pitch-mix";
   event: string;
   detail: string;
+  pitchInfo: string | null;
   gameMoment: string;
   timestamp: string;
   createdAt: string;

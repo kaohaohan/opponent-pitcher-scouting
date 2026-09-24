@@ -1,7 +1,8 @@
 """Gemini-backed `ComparisonNoteProvider`.
 
-Gemini receives the `PregameLiveComparison` serialized to JSON and nothing
-else, the same boundary discipline as `app.pregame.llm.gemini`: no
+Gemini receives a `ComparisonNoteInput` serialized to JSON: deterministic
+pitch comparison data plus backend-computed game outcomes, and nothing else.
+It follows the same boundary discipline as `app.pregame.llm.gemini`: no
 database session, no source client, no way to query anything on its own.
 Unlike the pregame brief, the response is constrained to a JSON schema
 (`ComparisonNote`) via the SDK's structured-output mode, so a malformed
@@ -21,7 +22,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from ...config import settings
 from ...pregame.llm.gemini import GeminiConfigurationError, GeminiRequestError
-from ..schemas import ComparisonNote, PregameLiveComparison
+from ..schemas import ComparisonNote, ComparisonNoteInput
 from .base import ComparisonNoteProvider
 
 DEFAULT_MODEL = "gemini-3.6-flash"
@@ -34,8 +35,14 @@ _REQUEST_TIMEOUT_MS = 15_000
 
 _SYSTEM_INSTRUCTION = (
     "You are a baseball analyst writing a concise in-game scouting note. "
-    "You are given ONLY precomputed, structured pregame-vs-live pitch data "
-    "for one pitcher. Every percentage, velocity, and delta was calculated "
+    "You are given ONLY precomputed, structured data for one pitcher: a "
+    "pregame-vs-live pitch comparison and an outcome_context computed from "
+    "the selected pitcher's completed plate appearances. The outcome context "
+    "contains descriptive game results, not predictions or explanations. "
+    "Include the most relevant available outcome facts in 'summary'. Keep "
+    "'notable_changes' limited to pitch changes backed by 'signals'. Use "
+    "outcome_context limitations to qualify missing outcome measurements. "
+    "Every percentage, velocity, count, and delta was calculated "
     "by backend code; you must not recompute, estimate, or invent any "
     "number that is not already present in the data. "
     "The 'signals' list is the ONLY source of changes you may cite in "
@@ -48,9 +55,13 @@ _SYSTEM_INSTRUCTION = (
     "described as a clear change; a 'watch' must be phrased more "
     "tentatively, as early or as something to continue monitoring (e.g. "
     "'starting to lean more on...', 'worth continuing to watch'), never "
-    "as a settled trend. Never speculate about WHY a number moved — no "
-    "guesses about mechanics, fatigue, strategy, or matchups; state only "
-    "that the shift happened. When a signal's 'today_value' is 0 for a "
+    "as a settled trend. Never speculate about WHY a number moved or an "
+    "outcome occurred — no guesses about mechanics, fatigue, strategy, pitch "
+    "selection, or matchups. Report outcomes only as observed facts. Do not "
+    "calculate rates or totals from outcome_context; use the supplied values. "
+    "The hard-hit count uses the supplied hard_hit_threshold_mph. If the "
+    "maximum exit velocity is null, say it is unavailable rather than zero. "
+    "When a signal's 'today_value' is 0 for a "
     "usage metric, describe it as the pitcher having 'not thrown that "
     "pitch yet today', not as a percentage drop to zero. "
     "Reflect 'overall_live_status' and 'limitations' in 'sample_note': if "
@@ -91,7 +102,7 @@ class GeminiComparisonProvider(ComparisonNoteProvider):
     def __init__(self, model: str = DEFAULT_MODEL) -> None:
         self._model = model
 
-    def generate_note(self, comparison: PregameLiveComparison) -> ComparisonNote:
+    def generate_note(self, comparison: ComparisonNoteInput) -> ComparisonNote:
         api_key = settings.gemini_api_key
         if not api_key:
             raise GeminiConfigurationError(

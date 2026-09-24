@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from copy import deepcopy
 from datetime import date
 from pathlib import Path
 
@@ -207,6 +208,9 @@ def test_note_endpoint_returns_the_generated_note(client, monkeypatch):
     assert response.json()["summary"] == "Notable slider usage."
     assert len(fake_note.received_comparisons) == 1
     assert isinstance(fake_note.received_comparisons[0], PregameLiveComparison)
+    assert fake_note.received_comparisons[0].outcome_context.home_runs_allowed == 1
+    assert fake_note.received_comparisons[0].outcome_context.hard_hit_contacts == 1
+    assert fake_note.received_comparisons[0].outcome_context.max_exit_velocity_mph == 104.3
 
 
 def test_note_endpoint_caches_repeated_requests_for_the_same_comparison_state(client, monkeypatch):
@@ -232,6 +236,41 @@ def test_note_endpoint_caches_repeated_requests_for_the_same_comparison_state(cl
     assert second.status_code == 200
     assert first.json() == second.json()
     assert len(fake_note.received_comparisons) == 1
+
+
+def test_note_cache_invalidates_when_outcomes_change_but_pitch_comparison_does_not(
+    client, monkeypatch
+):
+    from app.comparison.api import get_comparison_note_provider
+
+    payload = deepcopy(LIVE_PAYLOAD)
+    monkeypatch.setattr(comparison_api, "LiveSource", StubLiveSource(payload))
+    _override_pitch_source(client.app, statcast_record("SL", 25, 85.6))
+    fake_note = FakeComparisonNoteProvider(
+        ComparisonNote(summary="Outcome note.", notable_changes=[], sample_note="ok")
+    )
+    client.app.dependency_overrides[get_comparison_note_provider] = lambda: fake_note
+    params = {"start_date": "2025-08-01", "end_date": "2025-08-15"}
+    endpoint = f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison/note"
+
+    first = client.post(endpoint, params=params)
+    first_input = fake_note.received_comparisons[0]
+    payload["liveData"]["plays"]["allPlays"].append(
+        {
+            "about": {"atBatIndex": 99, "isComplete": True},
+            "matchup": {"pitcher": {"id": PITCHER_ID}},
+            "result": {"event": "Home Run"},
+            "playEvents": [],
+        }
+    )
+    second = client.post(endpoint, params=params)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first_input.live_total_pitches == fake_note.received_comparisons[1].live_total_pitches
+    assert first_input.outcome_context.home_runs_allowed == 1
+    assert fake_note.received_comparisons[1].outcome_context.home_runs_allowed == 2
+    assert len(fake_note.received_comparisons) == 2
 
 
 def test_note_endpoint_returns_503_when_gemini_is_unconfigured(client, monkeypatch):
