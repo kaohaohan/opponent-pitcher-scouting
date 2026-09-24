@@ -7,6 +7,8 @@ safe because the database is the idempotency authority.
 
 from __future__ import annotations
 
+import threading
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -26,6 +28,49 @@ class LiveGameNotFound(LiveSourceError):
 
 class LiveFeedError(LiveSourceError):
     """MLB was unavailable or returned an unusable response."""
+
+
+#: How long a fetched snapshot stays fresh before the next caller re-hits
+#: MLB. Sync (~20s), comparison (~15s), and game-summary (~15s) polling all
+#: share this cache, so within the window they collapse to one upstream call.
+LIVE_SNAPSHOT_TTL_SECONDS = 10.0
+
+# game_id -> (fetched_at monotonic timestamp, payload). Process-wide and
+# in-memory only: no Redis, no cross-process sharing, no eviction beyond TTL
+# expiry (games are few and short-lived, so this never grows large).
+_snapshot_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_snapshot_cache_lock = threading.Lock()
+
+# One lock per game_id so that concurrent fetches for the *same* game
+# serialize (and the loser reuses whatever the winner just cached), while
+# fetches for different games never block each other.
+_snapshot_fetch_locks: dict[str, threading.Lock] = {}
+
+
+def clear_live_snapshot_cache() -> None:
+    """Drop every cached live feed snapshot.
+
+    Tests use this (via an autouse fixture) to keep runs isolated, since the
+    cache is process-wide state shared across `LiveSource` instances.
+    """
+    with _snapshot_cache_lock:
+        _snapshot_cache.clear()
+        _snapshot_fetch_locks.clear()
+
+
+def _cached_snapshot(game_id: str) -> dict[str, Any] | None:
+    entry = _snapshot_cache.get(game_id)
+    if entry is None:
+        return None
+    fetched_at, payload = entry
+    if time.monotonic() - fetched_at >= LIVE_SNAPSHOT_TTL_SECONDS:
+        return None
+    return payload
+
+
+def _fetch_lock_for(game_id: str) -> threading.Lock:
+    with _snapshot_cache_lock:
+        return _snapshot_fetch_locks.setdefault(game_id, threading.Lock())
 
 
 class LiveSource(PlateAppearanceSource):
@@ -87,6 +132,27 @@ class LiveSource(PlateAppearanceSource):
         return payload
 
     def _fetch(self) -> dict[str, Any]:
+        """Return this game's snapshot, from the shared TTL cache when fresh.
+
+        Only successful payloads are cached; `LiveGameNotFound` and
+        `LiveFeedError` propagate without being cached, so the next call
+        retries upstream immediately.
+        """
+        cached = _cached_snapshot(self.game_id)
+        if cached is not None:
+            return cached
+        with _fetch_lock_for(self.game_id):
+            # Double-checked: another thread may have refreshed the cache
+            # while we were waiting for the lock.
+            cached = _cached_snapshot(self.game_id)
+            if cached is not None:
+                return cached
+            payload = self._fetch_from_upstream()
+            with _snapshot_cache_lock:
+                _snapshot_cache[self.game_id] = (time.monotonic(), payload)
+            return payload
+
+    def _fetch_from_upstream(self) -> dict[str, Any]:
         url = f"https://statsapi.mlb.com/api/v1.1/game/{self.game_id}/feed/live"
         client = self._client or httpx.Client(timeout=self.timeout)
         close_client = self._client is None

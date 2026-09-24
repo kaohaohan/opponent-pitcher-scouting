@@ -7,7 +7,8 @@ from pathlib import Path
 
 import httpx
 
-from app.sources import LiveSource
+import app.sources.live as live_module
+from app.sources import LiveGameNotFound, LiveSource
 
 LIVE_FIXTURE = (
     Path(__file__).parent / "fixtures" / "mlb_live_feed_776743_20250814_230000.json"
@@ -22,6 +23,20 @@ def _source(fixture_path=LIVE_FIXTURE, batter_ids=("657557",), pitcher_ids=()):
         )
     )
     return LiveSource(776743, batter_ids=batter_ids, pitcher_ids=pitcher_ids, client=client)
+
+
+def _counting_client(status_code: int = 200, fixture_path: Path = LIVE_FIXTURE):
+    """A client that records one call per request and serves canned responses."""
+    calls: list[None] = []
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(None)
+        if status_code == 404:
+            return httpx.Response(404)
+        return httpx.Response(status_code, json=payload)
+
+    return httpx.Client(transport=httpx.MockTransport(handler)), calls
 
 
 def test_live_source_maps_completed_watched_plays_and_selects_terminal_pitch():
@@ -114,3 +129,56 @@ def test_live_source_fetch_snapshot_returns_the_raw_feed_payload():
 
     assert payload["gameData"]["teams"]["away"]["name"] == "Chicago White Sox"
     assert isinstance(payload["liveData"]["plays"]["allPlays"], list)
+
+
+def test_live_snapshot_cache_reuses_payload_within_ttl():
+    client, calls = _counting_client()
+    other_client, other_calls = _counting_client()
+
+    first = LiveSource(999001, client=client).fetch_snapshot()
+    second = LiveSource(999001, client=other_client).fetch_snapshot()
+
+    assert first == second
+    assert len(calls) == 1
+    assert len(other_calls) == 0  # cache hit never touches the second client
+
+
+def test_live_snapshot_cache_refetches_after_ttl_expires(monkeypatch):
+    fake_now = [1_000.0]
+    monkeypatch.setattr(live_module.time, "monotonic", lambda: fake_now[0])
+
+    client, calls = _counting_client()
+    LiveSource(999002, client=client).fetch_snapshot()
+    assert len(calls) == 1
+
+    fake_now[0] += live_module.LIVE_SNAPSHOT_TTL_SECONDS + 0.01
+    LiveSource(999002, client=client).fetch_snapshot()
+    assert len(calls) == 2
+
+
+def test_live_snapshot_cache_does_not_cache_errors():
+    client, calls = _counting_client(status_code=404)
+    source = LiveSource(999003, client=client)
+
+    for _ in range(2):
+        try:
+            source.fetch_snapshot()
+        except LiveGameNotFound:
+            pass
+        else:  # pragma: no cover - assertion makes the failure explicit
+            raise AssertionError("expected LiveGameNotFound")
+
+    assert len(calls) == 2  # neither failed attempt was cached
+
+
+def test_live_snapshot_cache_is_independent_per_game_id():
+    client_a, calls_a = _counting_client()
+    client_b, calls_b = _counting_client()
+
+    LiveSource(999004, client=client_a).fetch_snapshot()
+    LiveSource(999005, client=client_b).fetch_snapshot()
+    LiveSource(999004, client=client_a).fetch_snapshot()
+    LiveSource(999005, client=client_b).fetch_snapshot()
+
+    assert len(calls_a) == 1
+    assert len(calls_b) == 1

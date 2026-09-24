@@ -234,6 +234,78 @@ def test_game_participants_endpoint(client, monkeypatch):
     assert client.get("/api/players").json() == []
 
 
+def test_live_game_summary_endpoint_returns_game_summary(client, monkeypatch):
+    payload = {
+        "gamePk": 776743,
+        "gameData": {
+            "status": {"abstractGameState": "Live", "detailedState": "In Progress"},
+            "teams": {
+                "away": {"id": 145, "name": "Chicago White Sox"},
+                "home": {"id": 108, "name": "Los Angeles Angels"},
+            },
+            "datetime": {"dateTime": "2025-08-14T23:00:00Z", "officialDate": "2025-08-14"},
+            "probablePitchers": {},
+        },
+        "liveData": {
+            "plays": {"allPlays": []},
+            "linescore": {
+                "currentInning": 5,
+                "isTopInning": True,
+                "inningState": "Top",
+                "outs": 1,
+                "defense": {"pitcher": {"id": 542881, "fullName": "Tyler Anderson"}},
+                "teams": {"away": {"runs": 2}, "home": {"runs": 1}},
+            }
+        },
+    }
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+
+    def source_factory(game_id):
+        return LiveSource(game_id, client=httpx.Client(transport=transport))
+
+    monkeypatch.setattr(routes, "LiveSource", source_factory)
+    response = client.get("/api/live/games/776743/summary")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["game_id"] == "776743"
+    assert body["state"] == "live"
+    assert body["away_score"] == 2
+    assert body["home_score"] == 1
+    assert body["inning"] == 5
+    assert body["inning_half"] == "top"
+    assert body["outs"] == 1
+    assert body["current_pitcher"] == {"id": 542881, "name": "Tyler Anderson"}
+    assert body["current_pitcher_team_side"] == "home"
+
+
+def test_live_game_summary_endpoint_reports_game_not_found(client, monkeypatch):
+    transport = httpx.MockTransport(lambda request: httpx.Response(404))
+
+    def source_factory(game_id):
+        return LiveSource(game_id, client=httpx.Client(transport=transport))
+
+    monkeypatch.setattr(routes, "LiveSource", source_factory)
+    response = client.get("/api/live/games/999999/summary")
+
+    assert response.status_code == 404
+
+
+def test_live_game_summary_endpoint_reports_upstream_failure(client, monkeypatch):
+    def raise_transport(request):
+        raise httpx.ConnectError("boom", request=request)
+
+    transport = httpx.MockTransport(raise_transport)
+
+    def source_factory(game_id):
+        return LiveSource(game_id, client=httpx.Client(transport=transport))
+
+    monkeypatch.setattr(routes, "LiveSource", source_factory)
+    response = client.get("/api/live/games/776743/summary")
+
+    assert response.status_code == 502
+
+
 def test_live_games_endpoint_returns_schedule_for_date(client, monkeypatch):
     payload = {
         "dates": [
@@ -268,8 +340,10 @@ def test_live_games_endpoint_returns_schedule_for_date(client, monkeypatch):
     assert body[0]["away_team"]["name"] == "Seattle Mariners"
     assert body[0]["home_team"]["name"] == "Baltimore Orioles"
     assert body[0]["status"] == "Final"
+    assert body[0]["state"] == "final"
     assert body[0]["away_score"] == 3
     assert body[0]["home_score"] == 5
+    assert body[0]["current_pitcher"] is None
 
 
 def test_live_games_endpoint_returns_empty_list_when_no_games(client, monkeypatch):

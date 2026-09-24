@@ -19,7 +19,11 @@ from app.main import create_app
 from app.pregame.api import get_pitch_source
 from app.pregame.schemas import PitchRecord
 from app.sources.live import LiveGameNotFound, LiveSourceError
-from tests.comparison.fakes import FakeComparisonNoteProvider, StubLiveSource
+from tests.comparison.fakes import (
+    CountingFakePitchDataSource,
+    FakeComparisonNoteProvider,
+    StubLiveSource,
+)
 from tests.pregame.fakes import FakePitchDataSource
 
 LIVE_FIXTURE = (
@@ -243,6 +247,67 @@ def test_note_endpoint_returns_502_on_malformed_gemini_response(client, monkeypa
     )
 
     assert response.status_code == 502
+
+
+def test_baseline_cache_prevents_a_second_statcast_fetch_within_ttl(client, monkeypatch):
+    """Two polls of the same pitcher/window should hit the fake Statcast
+    source once, not twice — `app.comparison.api`'s baseline cache should
+    serve the second request from memory."""
+    monkeypatch.setattr(comparison_api, "LiveSource", StubLiveSource(LIVE_PAYLOAD))
+    counting_source = CountingFakePitchDataSource(statcast_record("SL", 25, 85.6))
+    client.app.dependency_overrides[get_pitch_source] = lambda: counting_source
+
+    params = {"start_date": "2025-08-01", "end_date": "2025-08-15"}
+    first = client.get(
+        f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison", params=params
+    )
+    second = client.get(
+        f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison", params=params
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json() == second.json()
+    assert counting_source.call_count == 1
+
+
+def test_baseline_cache_is_keyed_by_pitcher_and_window(client, monkeypatch):
+    """A different date window is a cache miss, not a stale hit."""
+    monkeypatch.setattr(comparison_api, "LiveSource", StubLiveSource(LIVE_PAYLOAD))
+    counting_source = CountingFakePitchDataSource(statcast_record("SL", 25, 85.6))
+    client.app.dependency_overrides[get_pitch_source] = lambda: counting_source
+
+    client.get(
+        f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison",
+        params={"start_date": "2025-08-01", "end_date": "2025-08-15"},
+    )
+    client.get(
+        f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison",
+        params={"start_date": "2025-07-01", "end_date": "2025-07-15"},
+    )
+
+    assert counting_source.call_count == 2
+
+
+def test_get_comparison_never_calls_the_llm_fake(client, monkeypatch):
+    """The numeric comparison route must stay safe to poll — it should
+    never touch the note provider, even indirectly."""
+    from app.comparison.api import get_comparison_note_provider
+
+    class ExplodingProvider:
+        def generate_note(self, comparison):
+            raise AssertionError("GET comparison must never call the note provider")
+
+    monkeypatch.setattr(comparison_api, "LiveSource", StubLiveSource(LIVE_PAYLOAD))
+    _override_pitch_source(client.app, statcast_record("SL", 25, 85.6))
+    client.app.dependency_overrides[get_comparison_note_provider] = ExplodingProvider
+
+    response = client.get(
+        f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison",
+        params={"start_date": "2025-08-01", "end_date": "2025-08-15"},
+    )
+
+    assert response.status_code == 200
 
 
 def test_note_failure_never_affects_the_comparison_get_endpoint(client, monkeypatch):

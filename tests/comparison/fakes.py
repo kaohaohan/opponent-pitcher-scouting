@@ -3,11 +3,14 @@ Gemini calls in tests."""
 
 from __future__ import annotations
 
+from datetime import date
 from types import SimpleNamespace
 from typing import Any
 
 from app.comparison.llm.base import ComparisonNoteProvider
 from app.comparison.schemas import ComparisonNote, PregameLiveComparison
+from app.pregame.schemas import PitchRecord
+from app.pregame.sources.base import PitchDataSource
 
 
 class StubLiveSource:
@@ -51,6 +54,26 @@ class FakeComparisonNoteProvider(ComparisonNoteProvider):
     def generate_note(self, comparison: PregameLiveComparison) -> ComparisonNote:
         self.received_comparisons.append(comparison)
         return self.note
+
+
+class CountingFakePitchDataSource(PitchDataSource):
+    """Like `tests.pregame.fakes.FakePitchDataSource`, but also counts how
+    many times `fetch_pitcher_pitches` actually ran — lets a test assert
+    that `app.comparison.api`'s baseline cache stopped a second poll from
+    re-hitting the (fake) Statcast source at all.
+    """
+
+    name = "counting-fake"
+
+    def __init__(self, records: list[PitchRecord] | None = None) -> None:
+        self.records = records or []
+        self.call_count = 0
+
+    def fetch_pitcher_pitches(
+        self, pitcher_id: int, start_date: date, end_date: date
+    ) -> list[PitchRecord]:
+        self.call_count += 1
+        return self.records
 
 
 class FakeGenAIClient:

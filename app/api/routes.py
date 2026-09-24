@@ -17,12 +17,12 @@ from ..processing import PlateAppearanceProcessor
 from ..schemas import (
     AlertRead,
     GameParticipantsRead,
+    GameSummary,
     LiveSyncReport,
     LiveSyncRequest,
     PlateAppearanceRead,
     PlayerRead,
     ReplayReport,
-    ScheduleGameRead,
     WatchRole,
 )
 from ..sources import (
@@ -32,6 +32,7 @@ from ..sources import (
     ReplaySource,
     ScheduleSource,
     ScheduleSourceError,
+    summarize_live_feed,
 )
 
 router = APIRouter(prefix="/api", tags=["watch"])
@@ -120,8 +121,8 @@ def sync_live(request: LiveSyncRequest) -> LiveSyncReport:
     )
 
 
-@router.get("/live/games", response_model=list[ScheduleGameRead])
-def get_live_games(date: str = Query(...)) -> list[ScheduleGameRead]:
+@router.get("/live/games", response_model=list[GameSummary])
+def get_live_games(date: str = Query(...)) -> list[GameSummary]:
     """MLB's schedule for one date, so a user can pick a game without a gamePk."""
     try:
         parsed_date = date_cls.fromisoformat(date)
@@ -150,3 +151,22 @@ def get_live_game_participants(game_id: int) -> GameParticipantsRead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except LiveSourceError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+
+@router.get(
+    "/live/games/{game_id}/summary",
+    response_model=GameSummary,
+)
+def get_live_game_summary(game_id: int) -> GameSummary:
+    """One game's scoreboard state (score, inning, current pitcher), built
+    from the same cached live feed snapshot `sync`/`participants`/comparison
+    polling already share.
+    """
+    source = LiveSource(game_id=game_id)
+    try:
+        payload = source.fetch_snapshot()
+    except LiveGameNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except LiveSourceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return summarize_live_feed(payload)

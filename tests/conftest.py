@@ -14,6 +14,15 @@ from sqlalchemy.pool import StaticPool
 from app.config import DEFAULT_FIXTURE
 from app.db import Base
 from app.processing import PlateAppearanceProcessor
+from app.sources import clear_live_snapshot_cache
+
+
+@pytest.fixture(autouse=True)
+def _isolated_live_snapshot_cache() -> Iterator[None]:
+    """Keep the process-wide live feed snapshot cache from leaking across tests."""
+    clear_live_snapshot_cache()
+    yield
+    clear_live_snapshot_cache()
 
 
 @pytest.fixture()

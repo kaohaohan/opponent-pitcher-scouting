@@ -11,7 +11,8 @@ from typing import Any
 
 import httpx
 
-from ..schemas import ScheduleGameRead, TeamRead
+from ..schemas import GameSummary, TeamRead
+from ._linescore import game_state_from_status, linescore_fields, parse_pitcher_ref
 
 
 class ScheduleSourceError(RuntimeError):
@@ -25,12 +26,12 @@ class ScheduleSource:
         self._client = client
         self.timeout = timeout
 
-    def games_for_date(self, date: str) -> list[ScheduleGameRead]:
+    def games_for_date(self, date: str) -> list[GameSummary]:
         payload = self._fetch(date)
         dates = payload.get("dates", [])
         if not isinstance(dates, list):
             raise ScheduleSourceError("MLB schedule dates is not a list")
-        games: list[ScheduleGameRead] = []
+        games: list[GameSummary] = []
         for date_entry in dates:
             if not isinstance(date_entry, dict):
                 continue
@@ -45,7 +46,7 @@ class ScheduleSource:
 
     def _fetch(self, date: str) -> dict[str, Any]:
         url = "https://statsapi.mlb.com/api/v1/schedule"
-        params = {"sportId": 1, "date": date}
+        params = {"sportId": 1, "date": date, "hydrate": "linescore,probablePitcher"}
         client = self._client or httpx.Client(timeout=self.timeout)
         close_client = self._client is None
         try:
@@ -69,7 +70,7 @@ class ScheduleSource:
         return payload
 
     @staticmethod
-    def _parse_game(game: Any, date: str) -> ScheduleGameRead | None:
+    def _parse_game(game: Any, date: str) -> GameSummary | None:
         if not isinstance(game, dict):
             return None
         game_pk = game.get("gamePk")
@@ -86,13 +87,20 @@ class ScheduleSource:
             return None
         status = game.get("status") if isinstance(game.get("status"), dict) else {}
         game_date_iso = game.get("gameDate")
-        return ScheduleGameRead(
+        state = game_state_from_status(status)
+        return GameSummary(
             game_id=str(game_pk),
             game_date=date,
             away_team=TeamRead(id=away_team.get("id"), name=away_team["name"]),
             home_team=TeamRead(id=home_team.get("id"), name=home_team["name"]),
             status=status.get("detailedState") or status.get("abstractGameState") or "Unknown",
+            state=state,
             start_time=str(game_date_iso) if isinstance(game_date_iso, str) else None,
             away_score=away.get("score") if isinstance(away.get("score"), int) else None,
             home_score=home.get("score") if isinstance(home.get("score"), int) else None,
+            probable_pitchers={
+                "away": parse_pitcher_ref(away.get("probablePitcher")),
+                "home": parse_pitcher_ref(home.get("probablePitcher")),
+            },
+            **linescore_fields(game.get("linescore"), state),
         )

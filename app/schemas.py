@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -226,12 +226,39 @@ class LiveSyncReport(ReplayReport):
     game_status: str | None = None
 
 
-class ScheduleGameRead(BaseModel):
+class PitcherRef(BaseModel):
+    id: int
+    name: str
+
+
+class GameSummary(BaseModel):
+    """One game's discovery/scoreboard state: schedule fields plus the live
+    linescore detail (inning, outs, who's pitching) needed to go from "list of
+    today's games" straight to "who's on the mound right now" without a
+    separate round trip. Produced by both `ScheduleSource` (one entry per game
+    on a date) and `summarize_live_feed` (one game's own live feed).
+    """
+
     game_id: str
     game_date: str
+    start_time: str | None = None
+    status: str
+    #: Derived from `gameData.status.abstractGameState`: "Live" -> "live",
+    #: "Preview" -> "upcoming", "Final" -> "final", anything else -> "other".
+    state: Literal["live", "upcoming", "final", "other"]
     away_team: TeamRead
     home_team: TeamRead
-    status: str
-    start_time: str | None = None
     away_score: int | None = None
     home_score: int | None = None
+    inning: int | None = None
+    inning_half: Literal["top", "bottom"] | None = None
+    inning_state: str | None = None
+    outs: int | None = None
+    #: Only ever populated when `state == "live"`. A Final game's linescore
+    #: still carries a `defense.pitcher`, but that's the last pitcher who
+    #: threw, not a "current" one, so it is deliberately left `None`.
+    current_pitcher: PitcherRef | None = None
+    current_pitcher_team_side: Literal["away", "home"] | None = None
+    probable_pitchers: dict[Literal["away", "home"], PitcherRef | None] = Field(
+        default_factory=lambda: {"away": None, "home": None}
+    )

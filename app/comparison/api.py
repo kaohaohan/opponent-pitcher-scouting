@@ -9,17 +9,23 @@ something that doesn't parse. The note route is the only one that ever
 calls Gemini, and is meant to be triggered on demand (a "Generate AI
 Note" click), not polled. Both compose existing Phase 2/3 building blocks
 (`StatcastPitchSource`, `LiveSource`) rather than reimplementing either
-fetch.
+fetch. The Statcast baseline fetch itself sits behind a 6-hour in-process
+TTL cache (`_fetch_baseline_records`/`clear_baseline_cache`) so that
+repeated polling of the same pitcher/window doesn't repeatedly hit
+Baseball Savant.
 """
 
 from __future__ import annotations
 
+import threading
+import time
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..pregame.api import get_pitch_source
 from ..pregame.context import PregameContextBuilder
+from ..pregame.schemas import PitchRecord
 from ..pregame.sources.base import PitchDataSource
 from ..pregame.sources.statcast import StatcastFetchError
 from ..sources.live import LiveGameNotFound, LiveSource, LiveSourceError
@@ -40,6 +46,54 @@ router = APIRouter(prefix="/api/live/games", tags=["comparison"])
 #: `app.dependency_overrides[get_pitch_source] = ...` swaps the Statcast
 #: source for both the pregame brief route and this one — one DI seam,
 #: not two independent ones that happen to look alike.
+
+#: How long a fetched Statcast baseline stays fresh before the next caller
+#: re-hits Baseball Savant. Comparison polling (~15s) re-requests the same
+#: (pitcher_id, start_date, end_date) window on every poll even though the
+#: baseline itself only changes once a day, so this collapses a whole
+#: polling session down to one upstream fetch per window.
+_BASELINE_CACHE_TTL_SECONDS = 6 * 60 * 60.0
+
+_BaselineCacheKey = tuple[int, date, date]
+
+# (pitcher_id, start_date, end_date) -> (fetched_at monotonic timestamp,
+# records). Process-wide and in-memory only, same convention as
+# `app.sources.live`'s snapshot cache: no Redis, no cross-process sharing.
+_baseline_cache: dict[_BaselineCacheKey, tuple[float, list[PitchRecord]]] = {}
+_baseline_cache_lock = threading.Lock()
+
+
+def clear_baseline_cache() -> None:
+    """Drop every cached Statcast baseline fetch.
+
+    Tests use this (via an autouse fixture in `tests/comparison/conftest.py`)
+    to keep runs isolated, since the cache is process-wide state shared
+    across `PitchDataSource` instances.
+    """
+    with _baseline_cache_lock:
+        _baseline_cache.clear()
+
+
+def _fetch_baseline_records(
+    source: PitchDataSource, pitcher_id: int, start_date: date, end_date: date
+) -> list[PitchRecord]:
+    """This pitcher's Statcast pitches for the window, from the TTL cache
+    when fresh. Only a successful fetch is cached — a `StatcastFetchError`
+    propagates so the next call retries upstream immediately.
+    """
+    key = (pitcher_id, start_date, end_date)
+    with _baseline_cache_lock:
+        cached = _baseline_cache.get(key)
+        if cached is not None:
+            fetched_at, records = cached
+            if time.monotonic() - fetched_at < _BASELINE_CACHE_TTL_SECONDS:
+                return records
+
+    records = source.fetch_pitcher_pitches(pitcher_id, start_date, end_date)
+
+    with _baseline_cache_lock:
+        _baseline_cache[key] = (time.monotonic(), records)
+    return records
 
 
 def get_comparison_note_provider() -> ComparisonNoteProvider:
@@ -69,7 +123,7 @@ def _build_comparison(
     live_metrics = compute_live_pitcher_metrics(payload, pitcher_id)
 
     try:
-        records = source.fetch_pitcher_pitches(pitcher_id, start_date, end_date)
+        records = _fetch_baseline_records(source, pitcher_id, start_date, end_date)
     except StatcastFetchError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     baseline = PregameContextBuilder().build(pitcher_id, start_date, end_date, records)
