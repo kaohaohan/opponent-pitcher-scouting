@@ -321,7 +321,7 @@ unaffected either way.
 
 Local verification, all currently passing:
 
-- 211 backend tests (`pytest -q`)
+- 297 backend tests (`pytest -q`)
 - `ruff check .`
 - Frontend TypeScript check (`npm run typecheck`)
 - Frontend production build (`npm run build`)
