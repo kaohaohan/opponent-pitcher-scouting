@@ -7,7 +7,7 @@ import { DataState } from "@/components/DataState";
 import { DateNav, todayIso } from "@/components/DateNav";
 import { LiveGameCard } from "@/components/LiveGameCard";
 import { toGameSummary } from "@/lib/adapters";
-import type { GameParticipantDto } from "@/lib/api";
+import type { GameParticipantDto, PitchingLineDto } from "@/lib/api";
 import { useGameParticipants, useSchedule } from "@/lib/queries";
 import type { GameSummaryData, PitcherRefData } from "@/lib/types";
 
@@ -174,6 +174,19 @@ interface PitcherGroup {
   key: string;
   teamName: string;
   players: GameParticipantDto[];
+  /** True when `players` is the whole pitching roster because no one has a box-score line yet. */
+  rosterOnly: boolean;
+}
+
+function formatPitchingLine(line: PitchingLineDto): string {
+  const parts: string[] = [];
+  if (line.innings_pitched !== null) parts.push(`${line.innings_pitched} IP`);
+  if (line.pitches !== null) parts.push(`${line.pitches} P`);
+  if (line.hits !== null) parts.push(`${line.hits} H`);
+  if (line.runs !== null) parts.push(`${line.runs} R`);
+  if (line.walks !== null) parts.push(`${line.walks} BB`);
+  if (line.strikeouts !== null) parts.push(`${line.strikeouts} K`);
+  return parts.join(" · ");
 }
 
 function groupPitchersByTeam(participants: GameParticipantDto[]): PitcherGroup[] {
@@ -183,11 +196,17 @@ function groupPitchersByTeam(participants: GameParticipantDto[]): PitcherGroup[]
     const key = `${participant.team_side}:${participant.team_name}`;
     grouped.set(key, [...(grouped.get(key) ?? []), participant]);
   }
-  return [...grouped.entries()].map(([key, players]) => ({
-    key,
-    teamName: players[0]?.team_name ?? "Team",
-    players: players.sort((left, right) => left.name.localeCompare(right.name)),
-  }));
+  return [...grouped.entries()].map(([key, players]) => {
+    const appeared = players
+      .filter((player) => player.pitching_line)
+      .sort((left, right) => (left.pitching_line?.order ?? 0) - (right.pitching_line?.order ?? 0));
+    return {
+      key,
+      teamName: players[0]?.team_name ?? "Team",
+      players: appeared.length > 0 ? appeared : players.sort((left, right) => left.name.localeCompare(right.name)),
+      rosterOnly: appeared.length === 0,
+    };
+  });
 }
 
 function GamePitchers({ gameId, gameDate }: { gameId: number; gameDate?: string | null }) {
@@ -213,14 +232,20 @@ function GamePitchers({ gameId, gameDate }: { gameId: number; gameDate?: string 
       {pitcherGroups.map((group) => (
         <div className="participant-group" key={group.key}>
           <h3>{group.teamName}</h3>
+          {group.rosterOnly ? (
+            <p className="game-pitchers__note">No pitching lines yet — showing roster.</p>
+          ) : null}
           <div className="participant-list">
             {group.players.map((pitcher) => (
               <Link
                 key={pitcher.player_id}
-                className="manual-game-entry__pitcher"
+                className="manual-game-entry__pitcher game-pitchers__row"
                 href={analysisHref(String(gameId), pitcher.player_id, pitcher.name, gameDate)}
               >
-                {pitcher.name}
+                <span>{pitcher.name}</span>
+                {pitcher.pitching_line ? (
+                  <span className="game-pitchers__line">{formatPitchingLine(pitcher.pitching_line)}</span>
+                ) : null}
               </Link>
             ))}
           </div>
@@ -230,13 +255,13 @@ function GamePitchers({ gameId, gameDate }: { gameId: number; gameDate?: string 
   );
 }
 
-/** Lazy "who pitched" list: the participants request only fires once opened. */
+/** Lazy box-score list: the participants request only fires once opened. */
 function PitchersToggle({ game }: { game: GameSummaryData }) {
   const [opened, setOpened] = useState(false);
   const gameId = Number(game.gameId);
   return (
     <details className="game-pitchers" onToggle={(event) => setOpened(event.currentTarget.open)}>
-      <summary>All pitchers who appeared</summary>
+      <summary>Pitchers &amp; box score</summary>
       {opened && Number.isInteger(gameId) && gameId > 0 ? (
         <GamePitchers gameId={gameId} gameDate={game.gameDate} />
       ) : null}

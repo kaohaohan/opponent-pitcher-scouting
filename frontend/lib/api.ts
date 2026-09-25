@@ -83,6 +83,17 @@ export interface TeamDto {
   name: string;
 }
 
+export interface PitchingLineDto {
+  order: number;
+  innings_pitched: string | null;
+  pitches: number | null;
+  hits: number | null;
+  runs: number | null;
+  earned_runs: number | null;
+  walks: number | null;
+  strikeouts: number | null;
+}
+
 export interface GameParticipantDto {
   player_id: number;
   name: string;
@@ -90,6 +101,8 @@ export interface GameParticipantDto {
   team_name: string;
   team_side: "away" | "home";
   roles: Array<"batter" | "pitcher">;
+  /** Set only for pitchers who actually appeared in this game. */
+  pitching_line?: PitchingLineDto | null;
 }
 
 export interface GameParticipantsDto {

@@ -12,7 +12,7 @@ from typing import Any
 
 import httpx
 
-from ..schemas import GameParticipantsRead, ParticipantRead, TeamRead, WatchRole
+from ..schemas import GameParticipantsRead, ParticipantRead, PitchingLineRead, TeamRead, WatchRole
 from ._swr_cache import SWRCache
 from .base import PlateAppearanceSource, RawEvent
 
@@ -275,6 +275,7 @@ class LiveSource(PlateAppearanceSource):
                     team_name=data["team_name"],
                     team_side=data["team_side"],
                     roles=sorted(data["roles"]),
+                    pitching_line=data.get("pitching_line"),
                 )
                 for player_id, data in sorted(
                     participants.items(),
@@ -305,6 +306,14 @@ class LiveSource(PlateAppearanceSource):
         players = team_data.get("players")
         if not isinstance(players, dict):
             return
+        # MLB lists who actually pitched, in appearance order; the roster in
+        # `players` also carries every pitcher who never left the bullpen.
+        appeared = team_data.get("pitchers")
+        pitch_order = (
+            {pid: index for index, pid in enumerate(appeared, start=1) if isinstance(pid, int)}
+            if isinstance(appeared, list)
+            else {}
+        )
         for entry in players.values():
             if not isinstance(entry, dict):
                 continue
@@ -319,6 +328,30 @@ class LiveSource(PlateAppearanceSource):
             if not roles:
                 continue
             self._merge_participant(participants, player_id, name, teams, side, roles)
+            order = pitch_order.get(player_id)
+            if order is not None:
+                participants[player_id]["pitching_line"] = self._pitching_line(entry, order)
+
+    @staticmethod
+    def _pitching_line(entry: dict[str, Any], order: int) -> PitchingLineRead:
+        stats = entry.get("stats") if isinstance(entry.get("stats"), dict) else {}
+        pitching = stats.get("pitching") if isinstance(stats.get("pitching"), dict) else {}
+
+        def count(key: str) -> int | None:
+            value = pitching.get(key)
+            return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+        innings = pitching.get("inningsPitched")
+        return PitchingLineRead(
+            order=order,
+            innings_pitched=innings if isinstance(innings, str) else None,
+            pitches=count("numberOfPitches"),
+            hits=count("hits"),
+            runs=count("runs"),
+            earned_runs=count("earnedRuns"),
+            walks=count("baseOnBalls"),
+            strikeouts=count("strikeOuts"),
+        )
 
     def _boxscore_roles(self, entry: dict[str, Any]) -> set[WatchRole]:
         roles: set[WatchRole] = set()

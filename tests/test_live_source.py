@@ -126,6 +126,35 @@ def test_live_source_discovers_participants_from_boxscore_and_observed_plays():
     assert by_id[701002].roles == ["batter", "pitcher"]
 
 
+def test_live_source_attaches_pitching_lines_only_to_pitchers_who_appeared(tmp_path):
+    payload = json.loads(LIVE_FIXTURE.read_text(encoding="utf-8"))
+    home = payload["liveData"]["boxscore"]["teams"]["home"]
+    # 808080 is on the roster but never listed as having pitched.
+    home["pitchers"] = [542881]
+    home["players"]["ID542881"]["stats"]["pitching"] = {
+        "inningsPitched": "3.0",
+        "numberOfPitches": 52,
+        "hits": 4,
+        "runs": 2,
+        "earnedRuns": 1,
+        "baseOnBalls": 1,
+        "strikeOuts": 3,
+    }
+    fixture = tmp_path / "feed.json"
+    fixture.write_text(json.dumps(payload), encoding="utf-8")
+
+    participants = _source(fixture_path=fixture).discover_participants()
+
+    by_id = {participant.player_id: participant for participant in participants.participants}
+    line = by_id[542881].pitching_line
+    assert line is not None
+    assert line.order == 1
+    assert (line.innings_pitched, line.pitches, line.hits, line.runs) == ("3.0", 52, 4, 2)
+    assert (line.earned_runs, line.walks, line.strikeouts) == (1, 1, 3)
+    assert by_id[808080].pitching_line is None
+    assert by_id[657557].pitching_line is None
+
+
 def test_live_source_fetch_snapshot_returns_the_raw_feed_payload():
     payload = _source().fetch_snapshot()
 

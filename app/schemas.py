@@ -212,6 +212,24 @@ class TeamRead(BaseModel):
     name: str
 
 
+class PitchingLineRead(BaseModel):
+    """One pitcher's box-score line for this game.
+
+    Only set for pitchers MLB lists in `boxscore.teams.<side>.pitchers`,
+    i.e. those who actually appeared; `order` is their 1-based position in
+    that list (the starter is 1).
+    """
+
+    order: int
+    innings_pitched: str | None = None
+    pitches: int | None = None
+    hits: int | None = None
+    runs: int | None = None
+    earned_runs: int | None = None
+    walks: int | None = None
+    strikeouts: int | None = None
+
+
 class ParticipantRead(BaseModel):
     player_id: int
     name: str
@@ -219,6 +237,7 @@ class ParticipantRead(BaseModel):
     team_name: str
     team_side: str
     roles: list[WatchRole]
+    pitching_line: PitchingLineRead | None = None
 
 
 class GameParticipantsRead(BaseModel):
