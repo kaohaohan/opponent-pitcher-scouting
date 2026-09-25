@@ -1,7 +1,7 @@
 # Opponent Pitcher Scouting
 
-[![CI](https://github.com/kaohaohan/taiwanese-baseball-watch/actions/workflows/ci.yml/badge.svg)](https://github.com/kaohaohan/taiwanese-baseball-watch/actions/workflows/ci.yml)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-taiwanese--baseball--watch.vercel.app-2ea44f)](https://taiwanese-baseball-watch.vercel.app)
+[![CI](https://github.com/kaohaohan/opponent-pitcher-scouting/actions/workflows/ci.yml/badge.svg)](https://github.com/kaohaohan/opponent-pitcher-scouting/actions/workflows/ci.yml)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-opponent--pitcher--scouting.vercel.app-2ea44f)](https://opponent-pitcher-scouting.vercel.app)
 
 > **How is this pitcher different today from what we expected?**
 
@@ -11,7 +11,7 @@ meaningful changes — deterministic stats first, Gemini for narration only.
 
 ![Pitcher Analysis — today vs. baseline with WATCH/ALERT signals](docs/images/live-pitcher-watch.png)
 
-**[Try the live demo →](https://taiwanese-baseball-watch.vercel.app)**
+**[Try the live demo →](https://opponent-pitcher-scouting.vercel.app)**
 Open **Player Watch**, pick a live game's current pitcher, and see today vs.
 his baseline — or open any completed game from the Final list.
 
