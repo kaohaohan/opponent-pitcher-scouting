@@ -31,6 +31,7 @@ from ..pregame.sources.base import PitchDataSource
 from ..pregame.sources.statcast import StatcastFetchError
 from ..sources.live import LiveGameNotFound, LiveSource, LiveSourceError
 from .compare import build_comparison
+from .contact import ContactPitches, compute_contact_pitches
 from .live_metrics import compute_live_pitcher_metrics
 from .llm.base import ComparisonNoteProvider
 from .llm.gemini import (
@@ -206,6 +207,22 @@ def get_pitch_locations(game_id: int, pitcher_id: int) -> PitchLocations:
     except LiveSourceError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return compute_pitch_locations(payload, pitcher_id)
+
+
+@router.get(
+    "/{game_id}/pitchers/{pitcher_id}/contact-pitches",
+    response_model=ContactPitches,
+)
+def get_contact_pitches(game_id: int, pitcher_id: int) -> ContactPitches:
+    """Home-run and 100+ mph contact pitches for this outing, independent
+    of Statcast and Gemini."""
+    try:
+        payload = LiveSource(game_id=game_id).fetch_snapshot()
+    except LiveGameNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except LiveSourceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return compute_contact_pitches(payload, pitcher_id)
 
 
 @router.post(

@@ -16,7 +16,7 @@ function colorForType(code: string): string {
   return `hsl(${hash % 360} 68% 69%)`;
 }
 
-function displayName(code: string): string {
+export function displayName(code: string): string {
   return ({ FF: "Four-seam", SI: "Sinker", SL: "Slider", CH: "Changeup", CU: "Curveball",
     FC: "Cutter", FS: "Splitter", ST: "Sweeper", KC: "Knuckle curve", FA: "Fastball",
     FT: "Two-seam", FO: "Forkball", EP: "Eephus", KN: "Knuckleball", SC: "Screwball",

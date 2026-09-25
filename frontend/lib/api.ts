@@ -343,6 +343,37 @@ export function getPitchLocations(gameId: number, pitcherId: number): Promise<Pi
   return fetchJson<PitchLocationsDto>(`/api/live/games/${gameId}/pitchers/${pitcherId}/locations`);
 }
 
+export interface ContactPitchDto {
+  at_bat_index: number | null;
+  inning: number | null;
+  batter_name: string | null;
+  reasons: Array<"home_run" | "high_ev_contact">;
+  outcome: string | null;
+  pitch_type: string | null;
+  pitch_velocity_mph: number | null;
+  balls: number | null;
+  strikes: number | null;
+  batter_side: "L" | "R" | null;
+  plate_x: number | null;
+  plate_z: number | null;
+  sz_top: number | null;
+  sz_bot: number | null;
+  region: "heart" | "shadow" | "chase" | "waste" | null;
+  exit_velocity_mph: number | null;
+  launch_angle_deg: number | null;
+}
+
+export interface ContactPitchesDto {
+  high_ev_threshold_mph: number;
+  pitches: ContactPitchDto[];
+}
+
+export function getContactPitches(gameId: number, pitcherId: number): Promise<ContactPitchesDto> {
+  return fetchJson<ContactPitchesDto>(
+    `/api/live/games/${gameId}/pitchers/${pitcherId}/contact-pitches`,
+  );
+}
+
 export interface NotableChangeDto {
   metric: string;
   description: string;
