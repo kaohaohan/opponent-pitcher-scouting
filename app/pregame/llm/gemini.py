@@ -29,7 +29,10 @@ _SYSTEM_INSTRUCTION = (
     "pitcher is likely to do — mention it, if at all, only as an "
     "observation with too little data to draw a conclusion. Read the "
     "'limitations' list and reflect those caveats in the brief rather than "
-    "ignoring them."
+    "ignoring them. Never describe a pitcher's intent or execution — no "
+    "'mistake', 'missed his spot', 'intended', 'meant to', or 'lost "
+    "command' — describe only where the pitch finished and the observed "
+    "outcome."
 )
 
 

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { ComparisonNote } from "@/components/ComparisonNote";
+import { ContactPitches } from "@/components/ContactPitches";
 import { DataState } from "@/components/DataState";
 import { shiftDate, todayIso } from "@/components/DateNav";
 import { PitchMixComparison } from "@/components/PitchMixComparison";
@@ -22,6 +23,7 @@ import { useLiveMonitoring } from "@/lib/live-monitoring-provider";
 import {
   useAlerts,
   useComparisonNote,
+  useContactPitches,
   useEvents,
   useGameSummary,
   usePregameLiveComparison,
@@ -104,6 +106,7 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
   const comparisonRequest: ComparisonRequest = { gameId, pitcherId, startDate, endDate };
   const comparisonQuery = usePregameLiveComparison(comparisonRequest);
   const locationsQuery = usePitchLocations(gameId, pitcherId);
+  const contactPitchesQuery = useContactPitches(gameId, pitcherId);
   const comparison = comparisonQuery.data ? toPregameLiveComparison(comparisonQuery.data) : null;
   // `placeholderData: keepPreviousData` (see `usePregameLiveComparison`)
   // keeps the previous pitcher/window's result on screen while a changed
@@ -218,6 +221,13 @@ export function PitcherAnalysisClient({ gameId, pitcherId }: PitcherAnalysisClie
         isLoading={locationsQuery.isLoading}
         error={locationsQuery.isError ? errorMessage(locationsQuery.error) : null}
         onRetry={() => void locationsQuery.refetch()}
+      />
+
+      <ContactPitches
+        contactPitches={contactPitchesQuery.data ?? null}
+        isLoading={contactPitchesQuery.isLoading}
+        error={contactPitchesQuery.isError ? errorMessage(contactPitchesQuery.error) : null}
+        onRetry={() => void contactPitchesQuery.refetch()}
       />
 
       <SignalsPanel comparison={comparison} isUpdating={comparisonUpdating} />

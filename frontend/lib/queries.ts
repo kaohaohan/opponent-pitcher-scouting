@@ -6,6 +6,7 @@ import {
   generateComparisonNote,
   generatePregameBrief,
   getAlerts,
+  getContactPitches,
   getEvents,
   getGameParticipants,
   getGameSummary,
@@ -187,6 +188,17 @@ export function usePitchLocations(gameId: number, pitcherId: number) {
   return useQuery({
     queryKey: ["pitch-locations", gameId, pitcherId],
     queryFn: () => getPitchLocations(gameId, pitcherId),
+    staleTime: 10 * 1000,
+    refetchInterval: 15 * 1000,
+    refetchIntervalInBackground: false,
+    retry: 1,
+  });
+}
+
+export function useContactPitches(gameId: number, pitcherId: number) {
+  return useQuery({
+    queryKey: ["contact-pitches", gameId, pitcherId],
+    queryFn: () => getContactPitches(gameId, pitcherId),
     staleTime: 10 * 1000,
     refetchInterval: 15 * 1000,
     refetchIntervalInBackground: false,

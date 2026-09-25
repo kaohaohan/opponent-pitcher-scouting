@@ -9,6 +9,21 @@ from ..rules.engine import HARD_CONTACT_EXIT_VELOCITY_MPH
 from .schemas import OutcomeContext
 
 
+def exit_velocity_from_hit_data(hit_data: Any) -> float | None:
+    """Parse a terminal pitch event's `hitData.launchSpeed` into a finite,
+    positive exit velocity, or `None` when it's missing, unparseable,
+    non-finite, or not a real reading (<= 0).
+    """
+    raw_exit_velocity = hit_data.get("launchSpeed") if isinstance(hit_data, dict) else None
+    try:
+        exit_velocity = float(raw_exit_velocity)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(exit_velocity) or exit_velocity <= 0:
+        return None
+    return exit_velocity
+
+
 def compute_pitcher_outcome_context(
     payload: dict[str, Any], pitcher_id: int
 ) -> OutcomeContext:
@@ -54,14 +69,8 @@ def compute_pitcher_outcome_context(
         )
         terminal = next(pitches, None)
         hit_data = terminal.get("hitData") if isinstance(terminal, dict) else None
-        raw_exit_velocity = (
-            hit_data.get("launchSpeed") if isinstance(hit_data, dict) else None
-        )
-        try:
-            exit_velocity = float(raw_exit_velocity)
-        except (TypeError, ValueError):
-            continue
-        if not math.isfinite(exit_velocity) or exit_velocity <= 0:
+        exit_velocity = exit_velocity_from_hit_data(hit_data)
+        if exit_velocity is None:
             continue
         measured += 1
         if exit_velocity >= HARD_CONTACT_EXIT_VELOCITY_MPH:

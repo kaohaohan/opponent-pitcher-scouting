@@ -24,6 +24,7 @@ from hashlib import sha256
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from ..llm_guard import LLMPolicyViolationError, ensure_no_banned_phrases
 from ..pregame.api import get_pitch_source
 from ..pregame.context import PregameContextBuilder
 from ..pregame.schemas import PitchRecord
@@ -31,6 +32,7 @@ from ..pregame.sources.base import PitchDataSource
 from ..pregame.sources.statcast import StatcastFetchError
 from ..sources.live import LiveGameNotFound, LiveSource, LiveSourceError
 from .compare import build_comparison
+from .contact import ContactPitches, compute_contact_pitches
 from .live_metrics import compute_live_pitcher_metrics
 from .llm.base import ComparisonNoteProvider
 from .llm.gemini import (
@@ -208,6 +210,22 @@ def get_pitch_locations(game_id: int, pitcher_id: int) -> PitchLocations:
     return compute_pitch_locations(payload, pitcher_id)
 
 
+@router.get(
+    "/{game_id}/pitchers/{pitcher_id}/contact-pitches",
+    response_model=ContactPitches,
+)
+def get_contact_pitches(game_id: int, pitcher_id: int) -> ContactPitches:
+    """Home-run and 100+ mph contact pitches for this outing, independent
+    of Statcast and Gemini."""
+    try:
+        payload = LiveSource(game_id=game_id).fetch_snapshot()
+    except LiveGameNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except LiveSourceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return compute_contact_pitches(payload, pitcher_id)
+
+
 @router.post(
     "/{game_id}/pitchers/{pitcher_id}/comparison/note",
     response_model=ComparisonNote,
@@ -228,6 +246,12 @@ def generate_comparison_note(
     never affects the GET route — the two are entirely separate requests
     against separate computations of the deterministic numbers, so the
     numeric table is never blocked on this endpoint's success.
+
+    The generated note is also checked against `app.llm_guard` for
+    intent/execution vocabulary (e.g. "mistake", "missed his spot") before
+    it is returned or cached — this feed records where a pitch finished,
+    not what anyone meant to throw. A violation is a 502, same as any other
+    Gemini failure, and is never cached.
     """
     try:
         live_payload = LiveSource(game_id=game_id).fetch_snapshot()
@@ -266,6 +290,14 @@ def generate_comparison_note(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
             ) from exc
         except (GeminiRequestError, GeminiMalformedResponseError) as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        try:
+            ensure_no_banned_phrases(
+                [note.summary, note.sample_note]
+                + [change.metric for change in note.notable_changes]
+                + [change.description for change in note.notable_changes]
+            )
+        except LLMPolicyViolationError as exc:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
         _note_cache[cache_key] = (time.monotonic(), note)
         return note

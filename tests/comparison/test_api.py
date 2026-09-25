@@ -402,3 +402,77 @@ def test_note_failure_never_affects_the_comparison_get_endpoint(client, monkeypa
     assert comparison_response.status_code == 200
     assert comparison_response.json()["baseline_available"] is True
     assert comparison_response.json()["rows"]
+
+
+def test_note_endpoint_returns_502_when_note_contains_a_banned_phrase(client, monkeypatch):
+    """The public feed records where a pitch finished, not intent — a note
+    that describes execution ("missed his spot") is rejected, not served."""
+    from app.comparison.api import get_comparison_note_provider
+
+    monkeypatch.setattr(comparison_api, "LiveSource", StubLiveSource(LIVE_PAYLOAD))
+    _override_pitch_source(client.app, statcast_record("SL", 25, 85.6))
+    fake_note = FakeComparisonNoteProvider(
+        ComparisonNote(
+            summary="He clearly missed his spot on that slider.",
+            notable_changes=[],
+            sample_note="ok",
+        )
+    )
+    client.app.dependency_overrides[get_comparison_note_provider] = lambda: fake_note
+
+    response = client.post(
+        f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison/note",
+        params={"start_date": "2025-08-01", "end_date": "2025-08-15"},
+    )
+
+    assert response.status_code == 502
+    assert "missed his spot" in response.json()["detail"].lower()
+
+
+def test_note_endpoint_never_caches_a_banned_phrase_violation(client, monkeypatch):
+    """A rejected note must never be cached — the provider is asked again
+    on the very next request for the same state."""
+    from app.comparison.api import get_comparison_note_provider
+
+    monkeypatch.setattr(comparison_api, "LiveSource", StubLiveSource(LIVE_PAYLOAD))
+    _override_pitch_source(client.app, statcast_record("SL", 25, 85.6))
+    fake_note = FakeComparisonNoteProvider(
+        ComparisonNote(
+            summary="He lost his command tonight.", notable_changes=[], sample_note="ok"
+        )
+    )
+    client.app.dependency_overrides[get_comparison_note_provider] = lambda: fake_note
+    params = {"start_date": "2025-08-01", "end_date": "2025-08-15"}
+    endpoint = f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison/note"
+
+    first = client.post(endpoint, params=params)
+    second = client.post(endpoint, params=params)
+
+    assert first.status_code == 502
+    assert second.status_code == 502
+    assert len(fake_note.received_comparisons) == 2
+
+
+def test_note_endpoint_allows_a_clean_note_containing_the_word_command(client, monkeypatch):
+    """A note that merely uses "command" on its own (e.g. "good command")
+    is not a violation — only "lost command" is banned."""
+    from app.comparison.api import get_comparison_note_provider
+
+    monkeypatch.setattr(comparison_api, "LiveSource", StubLiveSource(LIVE_PAYLOAD))
+    _override_pitch_source(client.app, statcast_record("SL", 25, 85.6))
+    fake_note = FakeComparisonNoteProvider(
+        ComparisonNote(
+            summary="He showed good command of the slider tonight.",
+            notable_changes=[],
+            sample_note="ok",
+        )
+    )
+    client.app.dependency_overrides[get_comparison_note_provider] = lambda: fake_note
+
+    response = client.post(
+        f"/api/live/games/776743/pitchers/{PITCHER_ID}/comparison/note",
+        params={"start_date": "2025-08-01", "end_date": "2025-08-15"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["summary"] == "He showed good command of the slider tonight."
