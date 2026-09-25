@@ -133,6 +133,25 @@ def test_brief_endpoint_reports_missing_credentials_as_a_clear_error(client):
     assert "GEMINI_API_KEY" in response.json()["detail"]
 
 
+def test_brief_endpoint_returns_502_when_brief_contains_a_banned_phrase(client):
+    """The public feed records where a pitch finished, not intent — a brief
+    that describes execution ("missed his spot") is rejected, not served."""
+
+    class BannedPhraseProvider:
+        def generate_brief(self, context):
+            return "He has missed his spot with the fastball lately."
+
+    client.app.dependency_overrides[get_llm_provider] = lambda: BannedPhraseProvider()
+
+    response = client.post(
+        "/api/pregame/brief",
+        json={"pitcher_id": 600001, "start_date": "2025-08-01", "end_date": "2025-08-15"},
+    )
+
+    assert response.status_code == 502
+    assert "missed his spot" in response.json()["detail"].lower()
+
+
 def test_phase1_router_still_answers_alongside_the_pregame_router(client):
     # A DB-free Phase 1 route is enough to prove both routers coexist; the
     # DB-backed Phase 1 endpoints are exercised in tests/test_api.py under
