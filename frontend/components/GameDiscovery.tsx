@@ -83,6 +83,7 @@ function FinalRow({ game }: { game: GameSummaryData }) {
           <ProbablePitcherLink gameId={game.gameId} gameDate={game.gameDate} pitcher={game.probablePitchers.home} />
         </div>
       ) : null}
+      <PitchersToggle game={game} />
     </div>
   );
 }
@@ -189,14 +190,64 @@ function groupPitchersByTeam(participants: GameParticipantDto[]): PitcherGroup[]
   }));
 }
 
+function GamePitchers({ gameId, gameDate }: { gameId: number; gameDate?: string | null }) {
+  const participantsQuery = useGameParticipants(gameId);
+  const participants = participantsQuery.data?.participants ?? [];
+  const pitcherGroups = useMemo(() => groupPitchersByTeam(participants), [participants]);
+
+  if (participantsQuery.isLoading) {
+    return <DataState kind="loading">Loading pitchers...</DataState>;
+  }
+  if (participantsQuery.error) {
+    return (
+      <DataState kind="error" onRetry={() => void participantsQuery.refetch()}>
+        {errorMessage(participantsQuery.error)}
+      </DataState>
+    );
+  }
+  if (pitcherGroups.length === 0) {
+    return <DataState>No pitchers found for this game yet.</DataState>;
+  }
+  return (
+    <div className="participant-groups">
+      {pitcherGroups.map((group) => (
+        <div className="participant-group" key={group.key}>
+          <h3>{group.teamName}</h3>
+          <div className="participant-list">
+            {group.players.map((pitcher) => (
+              <Link
+                key={pitcher.player_id}
+                className="manual-game-entry__pitcher"
+                href={analysisHref(String(gameId), pitcher.player_id, pitcher.name, gameDate)}
+              >
+                {pitcher.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Lazy "who pitched" list: the participants request only fires once opened. */
+function PitchersToggle({ game }: { game: GameSummaryData }) {
+  const [opened, setOpened] = useState(false);
+  const gameId = Number(game.gameId);
+  return (
+    <details className="game-pitchers" onToggle={(event) => setOpened(event.currentTarget.open)}>
+      <summary>All pitchers who appeared</summary>
+      {opened && Number.isInteger(gameId) && gameId > 0 ? (
+        <GamePitchers gameId={gameId} gameDate={game.gameDate} />
+      ) : null}
+    </details>
+  );
+}
+
 function ManualGameEntry() {
   const [gameIdInput, setGameIdInput] = useState("");
   const [loadedGameId, setLoadedGameId] = useState<number | null>(null);
   const [inputError, setInputError] = useState<string | null>(null);
-  const participantsQuery = useGameParticipants(loadedGameId);
-
-  const participants = participantsQuery.data?.participants ?? [];
-  const pitcherGroups = useMemo(() => groupPitchersByTeam(participants), [participants]);
 
   const handleLoad = () => {
     const gameId = Number(gameIdInput.trim());
@@ -210,7 +261,7 @@ function ManualGameEntry() {
 
   return (
     <details className="manual-game-entry">
-      <summary>Advanced: Enter game ID manually</summary>
+      <summary>Look up by game ID</summary>
       <div className="manual-game-entry__body">
         <div className="live-controls__grid">
           <label className="field-label">
@@ -226,42 +277,12 @@ function ManualGameEntry() {
             className="secondary-button"
             type="button"
             onClick={handleLoad}
-            disabled={participantsQuery.isFetching}
           >
             Load game
           </button>
         </div>
         {inputError ? <p className="control-status is-error">{inputError}</p> : null}
-        {loadedGameId !== null ? (
-          participantsQuery.isLoading ? (
-            <DataState kind="loading">Loading game participants...</DataState>
-          ) : participantsQuery.error ? (
-            <DataState kind="error" onRetry={() => void participantsQuery.refetch()}>
-              {errorMessage(participantsQuery.error)}
-            </DataState>
-          ) : pitcherGroups.length === 0 ? (
-            <DataState>No pitchers found for this game yet.</DataState>
-          ) : (
-            <div className="participant-groups">
-              {pitcherGroups.map((group) => (
-                <div className="participant-group" key={group.key}>
-                  <h3>{group.teamName}</h3>
-                  <div className="participant-list">
-                    {group.players.map((pitcher) => (
-                      <Link
-                        key={pitcher.player_id}
-                        className="manual-game-entry__pitcher"
-                        href={analysisHref(String(loadedGameId), pitcher.player_id, pitcher.name)}
-                      >
-                        {pitcher.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        ) : null}
+        {loadedGameId !== null ? <GamePitchers gameId={loadedGameId} /> : null}
       </div>
     </details>
   );
@@ -309,6 +330,8 @@ export function GameDiscovery() {
         <DateNav date={date} onChange={setDate} />
       </section>
 
+      <ManualGameEntry />
+
       {scheduleQuery.isLoading ? (
         <DataState kind="loading">Loading MLB schedule...</DataState>
       ) : scheduleFailed ? (
@@ -325,7 +348,6 @@ export function GameDiscovery() {
         </>
       )}
 
-      <ManualGameEntry />
     </div>
   );
 }

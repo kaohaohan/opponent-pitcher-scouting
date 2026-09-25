@@ -2455,3 +2455,18 @@ button.live-game-card__cta:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Expandable "who pitched" list under a final game row */
+.game-pitchers {
+  flex-basis: 100%;
+}
+
+.game-pitchers summary {
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.game-pitchers[open] summary {
+  margin-bottom: 10px;
+}
