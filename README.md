@@ -289,7 +289,33 @@ the LLM.
 strike-zone visualization only; global scouting signals remain unfiltered to
 avoid hiding relevant usage or velocity changes.
 
+**H. Gemini output is checked for intent/execution vocabulary.** Every
+generated brief and comparison note is scanned by backend code
+(`app.llm_guard`) for words like "mistake", "missed his spot", "intended",
+or "lost command" before it is returned. A violation is a 502, not a
+silently-served note, and never gets cached; the deterministic tables are
+unaffected either way.
+
 </details>
+
+## What this system deliberately does not claim
+
+- Statcast and the MLB live feed record where a pitch finished, not the
+  catcher's target or the called location. This system never judges
+  execution — no "mistake pitch", no "missed his spot", no "intended to".
+- The plate regions (Heart/Shadow/Chase/Waste) are geometry reconstructed
+  from the attack-region chart linked on Baseball Savant's Swing/Take page.
+  They are not a verified match to Savant's own implementation, and they are
+  not a quality grade.
+- Contact pitch cards are selected by outcome (a home run, or an exit
+  velocity at or above 100 mph), so they are a biased sample by
+  construction — hard-hit pitches in the Chase or Waste regions show up too.
+  They are individual events, never rates.
+- "Unusual for this pitcher" is not "poor execution." Where a pitch is
+  located depends on the game plan, not just what the pitcher can do.
+- Gemini's output is checked in backend code for intent/execution
+  vocabulary; a violation returns an error instead of the note, and the
+  deterministic tables stay available regardless.
 
 ## Testing
 
@@ -315,6 +341,8 @@ CI runs the same checks on every push and pull request via
 - Scouting outputs are descriptive, not predictive
 - Gemini interpretation can fail independently; deterministic numeric output
   remains available regardless
+- Intended location (the catcher's target or the pitcher's called location)
+  is not available in public data
 
 ---
 

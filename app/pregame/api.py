@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from ..llm_guard import LLMPolicyViolationError, ensure_no_banned_phrases
 from .context import PregameContextBuilder
 from .llm.base import LLMProvider
 from .llm.gemini import GeminiConfigurationError, GeminiProvider, GeminiRequestError
@@ -51,7 +52,11 @@ def generate_pregame_brief(
     source: PitchDataSource = Depends(get_pitch_source),
     llm: LLMProvider = Depends(get_llm_provider),
 ) -> PregameBriefResponse:
-    """Fetch, aggregate, guard, and describe one pitcher's recent pitches."""
+    """Fetch, aggregate, guard, and describe one pitcher's recent pitches.
+
+    The returned brief is checked against `app.llm_guard` for intent/
+    execution vocabulary before it is returned; a violation is a 502.
+    """
     try:
         records = source.fetch_pitcher_pitches(
             request.pitcher_id, request.start_date, request.end_date
@@ -75,6 +80,13 @@ def generate_pregame_brief(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
     except GeminiRequestError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+
+    try:
+        ensure_no_banned_phrases([brief])
+    except LLMPolicyViolationError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
         ) from exc
